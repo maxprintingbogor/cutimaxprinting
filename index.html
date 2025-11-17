@@ -3,22 +3,26 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Sistem Cuti — Admin Full (Final)</title>
+<title>Sistem Cuti Maxprinting</title>
 <style>
 :root{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
 body{max-width:1100px;margin:24px auto;padding:20px;background:#f7fafc;color:#0f172a}
 .card{background:white;border-radius:10px;padding:14px;box-shadow:0 6px 18px rgba(12,24,40,0.06);margin-top:16px}
 form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 label{display:block;font-size:13px;margin-bottom:6px}
-input,select,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #e6edf3;font-size:14px}
+input,select,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #e6edf3;font-size:14px;background:#fff}
 textarea{height:80px;resize:vertical}
 .actions{grid-column:1 / -1;display:flex;gap:8px;align-items:center}
 button{padding:9px 12px;border-radius:8px;border:0;background:#0ea5ad;color:white;cursor:pointer}
 button.ghost{background:transparent;border:1px solid #cbd5e1;color:#0f172a}
 .table-wrap{overflow:auto;margin-top:12px}
-table{width:100%;border-collapse:collapse}
-th,td{padding:8px;border-bottom:1px solid #eef2f6;text-align:left;font-size:14px}
-.status{padding:6px 8px;border-radius:8px;font-weight:700;display:inline-block}
+table{width:100%;border-collapse:separate;border-spacing:0 10px}
+thead th{background:transparent;padding:8px;text-align:left;font-size:13px;color:#334155}
+tbody tr{background:white;border-radius:8px;box-shadow:0 2px 6px rgba(12,24,40,0.03)}
+th,td{padding:12px 10px;border-bottom:0;text-align:left;font-size:14px;vertical-align:middle}
+td:first-child, th:first-child{border-top-left-radius:8px;border-bottom-left-radius:8px}
+td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-radius:8px}
+.status{padding:6px 10px;border-radius:999px;font-weight:700;display:inline-block;font-size:13px}
 .pending{background:#fff7ed;color:#92400e}
 .approved{background:#ecfdf5;color:#065f46}
 .rejected{background:#fff1f2;color:#9f1239}
@@ -27,11 +31,12 @@ th,td{padding:8px;border-bottom:1px solid #eef2f6;text-align:left;font-size:14px
 .reject{background:#ef4444;color:white}
 .delete{background:#f43f5e;color:white}
 .edit{background:#facc15;color:#08204a}
-@media (max-width:700px){ form{grid-template-columns:1fr} .actions{flex-direction:column;align-items:stretch} }
+@media (max-width:900px){ form{grid-template-columns:1fr} .actions{flex-direction:column;align-items:stretch} table{font-size:13px} }
 .export{background:#3b82f6;color:white}
+.note-small{font-size:13px;color:#64748b}
 </style>
 
-<!-- jsPDF + AutoTable (AutoTable must be after jsPDF) -->
+<!-- jsPDF + AutoTable (AutoTable must be loaded after jsPDF) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
@@ -45,7 +50,6 @@ th,td{padding:8px;border-bottom:1px solid #eef2f6;text-align:left;font-size:14px
     <div><label>Password</label><input type="password" id="loginPassword" required></div>
     <div class="actions">
       <button type="submit">Login</button>
-      <button type="button" id="forgotBtn" class="ghost">Lupa Password</button>
     </div>
   </form>
 </section>
@@ -118,7 +122,7 @@ th,td{padding:8px;border-bottom:1px solid #eef2f6;text-align:left;font-size:14px
       </div>
     </div>
 
-    <!-- NEW: delete by date range -->
+    <!-- DELETE BY DATE RANGE -->
     <div style="display:flex;gap:8px;align-items:end;margin-bottom:12px">
       <div>
         <label>Hapus Cuti - Dari tanggal</label>
@@ -131,7 +135,7 @@ th,td{padding:8px;border-bottom:1px solid #eef2f6;text-align:left;font-size:14px
       <div style="align-self:flex-end">
         <button id="btnDeleteRange" class="ghost">Hapus Cuti dalam Rentang</button>
       </div>
-      <div style="align-self:flex-end;color:#64748b;font-size:13px">(Hanya menghapus pengajuan, **tidak menghapus user**)</div>
+      <div style="align-self:flex-end;color:#64748b;font-size:13px">(Hanya menghapus pengajuan, <strong>tidak menghapus user</strong>)</div>
     </div>
 
     <div class="table-wrap">
@@ -183,8 +187,19 @@ if(users.length === 0){
 }
 let leaveRequests = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
 function saveLeaves(){ localStorage.setItem('leaveRequests', JSON.stringify(leaveRequests)); }
+
 function daysBetween(a,b){ return Math.floor((new Date(b) - new Date(a))/(1000*60*60*24)) + 1; }
 function getLoggedUser(){ return JSON.parse(localStorage.getItem('loggedUser')); }
+
+/* ---------- Helpers: keep loggedUser in sync ---------- */
+function syncLoggedUserIfMatches(username, newUserObj){
+  const logged = getLoggedUser();
+  if(!logged) return;
+  if(logged.username === username){
+    // update stored loggedUser to reflect latest user object
+    localStorage.setItem('loggedUser', JSON.stringify(newUserObj));
+  }
+}
 
 /* ---------- Render users (admin table) ---------- */
 function renderUsers(){
@@ -208,18 +223,28 @@ function renderUsers(){
       if(newPwd) u.password = newPwd;
       if(newRole) u.role = newRole;
       if(!isNaN(parseInt(newQuota))) u.quota = parseInt(newQuota);
-      saveUsers(); renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); alert('Perubahan disimpan');
-      const s = getLoggedUser();
-      if(s && s.username === u.username){ localStorage.setItem('loggedUser', JSON.stringify(u)); updateWhoami(); }
+      saveUsers(); renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered();
+      alert('Perubahan disimpan');
+      // sync loggedUser if admin is editing themselves
+      syncLoggedUserIfMatches(u.username, u);
+      updateWhoami();
     };
 
     // delete user: ONLY remove account, keep leaveRequests intact
     const delBtn = document.createElement('button'); delBtn.className='small-btn delete'; delBtn.textContent='Hapus';
     delBtn.onclick = () => {
       if(!confirm(`Hapus user "${u.username}"? (pengajuan cuti TIDAK akan dihapus)`)) return;
-      // remove user only
+      // if deleting currently loggedUser, remove loggedUser so they get logged out automatically
+      const logged = getLoggedUser();
+      const removedUsername = u.username;
       users.splice(idx,1);
       saveUsers();
+      if(logged && logged.username === removedUsername){
+        localStorage.removeItem('loggedUser');
+        alert('Anda (user yang dihapus) akan dikeluarkan dari sesi.');
+        location.reload();
+        return;
+      }
       renderUsers(); renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions();
     };
 
@@ -241,13 +266,11 @@ function renderAdminLeavesFiltered(){
 
   // sort newest first by id timestamp if available, otherwise by start date desc
   const leavesSorted = [...leaveRequests].sort((a,b)=>{
-    if(a.id && b.id){
-      return (b.id > a.id) ? 1 : -1; // ids like 'r_TIMESTAMP' sort lexicographically works
-    }
+    if(a.id && b.id) return (b.id > a.id) ? 1 : -1;
     return new Date(b.start) - new Date(a.start);
   });
 
-  leavesSorted.forEach((r, idx) => {
+  leavesSorted.forEach((r) => {
     const start = new Date(r.start);
     const end = new Date(r.end);
     if(statusFilter !== 'all' && r.status !== statusFilter) return;
@@ -257,7 +280,7 @@ function renderAdminLeavesFiltered(){
     if(yearFilter !== 'all'){ if(start.getFullYear().toString() !== yearFilter) return; }
 
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.username}</td><td>${r.start} → ${r.end}</td><td>${r.days}</td><td>${r.reason||'-'}</td><td><span class="status ${r.status}">${r.status}</span></td><td>${r.note||'-'}</td><td></td>`;
+    tr.innerHTML = `<td>${r.username}</td><td>${r.start} → ${r.end}</td><td>${r.days}</td><td>${(r.reason||'-')}</td><td><span class="status ${r.status}">${r.status}</span></td><td>${(r.note||'-')}</td><td></td>`;
     const actionsTd = tr.querySelector('td:last-child');
 
     // approve
@@ -267,8 +290,13 @@ function renderAdminLeavesFiltered(){
       const note = prompt('Keterangan persetujuan (opsional):','Disetujui') || 'Disetujui';
       r.status = 'approved'; r.note = note;
       const usr = users.find(u => u.username === r.username);
-      if(usr) usr.quota = Math.max(0, (parseInt(usr.quota)||0) - r.days);
-      saveLeaves(); saveUsers(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions();
+      if(usr){
+        usr.quota = Math.max(0, (parseInt(usr.quota)||0) - r.days);
+        saveUsers();
+        // if approved user is currently logged in, sync
+        syncLoggedUserIfMatches(usr.username, usr);
+      }
+      saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions();
     };
 
     // reject
@@ -284,7 +312,6 @@ function renderAdminLeavesFiltered(){
     const dBtn = document.createElement('button'); dBtn.className='small-btn delete'; dBtn.textContent='Hapus';
     dBtn.onclick = () => {
       if(!confirm('Hapus pengajuan ini?')) return;
-      // find index in main leaveRequests array and remove (we sorted a copy earlier)
       const realIndex = leaveRequests.findIndex(x => x.id === r.id && x.username === r.username && x.start === r.start && x.end === r.end);
       if(realIndex > -1){ leaveRequests.splice(realIndex,1); saveLeaves(); }
       renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions();
@@ -309,7 +336,7 @@ function renderUserLeaves(){
   });
   myLeaves.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.start} → ${r.end}</td><td>${r.days}</td><td>${r.reason||'-'}</td><td><span class="status ${r.status}">${r.status}</span></td><td>${r.note||'-'}</td>`;
+    tr.innerHTML = `<td>${r.start} → ${r.end}</td><td>${r.days}</td><td>${(r.reason||'-')}</td><td><span class="status ${r.status}">${r.status}</span></td><td>${(r.note||'-')}</td>`;
     tbody.appendChild(tr);
   });
   updateQuotaDisplay();
@@ -319,10 +346,16 @@ function updateQuotaDisplay(){
   const u = getLoggedUser(); if(!u) return;
   const used = leaveRequests.filter(l => l.username === u.username && l.status === 'approved').reduce((a,b)=>a + (b.days||0),0);
   const remaining = (u.quota || 0) - used;
+  // reflect remaining in users array display as well (keeps admin view consistent)
+  const usr = users.find(x => x.username === u.username);
+  if(usr) usr.quota = Math.max(0, remaining);
+  saveUsers();
   document.getElementById('leaveQuotaDisplay').textContent = `Sisa Cuti: ${remaining}`;
+  // re-render users table for up-to-date quota
+  renderUsers();
 }
 
-/* ---------- Login / Logout / Forgot ---------- */
+/* ---------- Login / Logout ---------- */
 document.getElementById('loginForm').addEventListener('submit', e => {
   e.preventDefault();
   const uname = document.getElementById('loginUsername').value.trim();
@@ -335,12 +368,6 @@ document.getElementById('loginForm').addEventListener('submit', e => {
 
 document.getElementById('logoutBtn').addEventListener('click', ()=> {
   localStorage.removeItem('loggedUser'); location.reload();
-});
-
-document.getElementById('forgotBtn').addEventListener('click', ()=> {
-  const uname = prompt('Masukkan username untuk melihat password (dev only):');
-  const u = users.find(x => x.username === uname);
-  if(u) alert(`Password: ${u.password}`); else alert('User tidak ditemukan');
 });
 
 /* ---------- Admin: add user ---------- */
@@ -358,7 +385,7 @@ document.getElementById('addUserForm').addEventListener('submit', e => {
   e.target.reset();
 });
 
-/* ---------- User: submit leave ---------- */
+/* ---------- Leave submit with overlap warning ---------- */
 document.getElementById('leaveForm').addEventListener('submit', e => {
   e.preventDefault();
   const u = getLoggedUser(); if(!u){ alert('Login terlebih dahulu'); return; }
@@ -368,6 +395,24 @@ document.getElementById('leaveForm').addEventListener('submit', e => {
   if(new Date(eDate) < new Date(s)){ alert('Tanggal selesai tidak boleh sebelum tanggal mulai'); return; }
   const days = daysBetween(s,eDate);
   const reason = document.getElementById('leaveReason').value || '-';
+
+  // find overlaps with other users (any status)
+  function overlaps(aStart,aEnd,bStart,bEnd){
+    return (aStart <= bEnd) && (bStart <= aEnd);
+  }
+  const start = new Date(s);
+  const end = new Date(eDate);
+  const overlapsList = leaveRequests.filter(r => {
+    if(r.username === u.username) return false; // ignore own existing requests
+    const rs = new Date(r.start), re = new Date(r.end);
+    return overlaps(start,end,rs,re);
+  }).map(r => `${r.username} (${r.start}→${r.end})`);
+
+  if(overlapsList.length){
+    const proceed = confirm(`Terdapat ${overlapsList.length} pengajuan lain yang overlap:\n- ${overlapsList.join('\n- ')}\n\nLanjutkan mengajukan cuti?`);
+    if(!proceed) return;
+  }
+
   const record = { id: 'r_'+Date.now(), username: u.username, start: s, end: eDate, days, reason, status: 'pending', note: '-' };
   leaveRequests.push(record);
   saveLeaves(); renderUserLeaves(); renderAdminLeavesFiltered(); populateFilterOptions();
@@ -396,7 +441,7 @@ document.getElementById('resetQuotaBtn').addEventListener('click', ()=> {
   users.forEach(u => u.quota = 12); saveUsers(); renderUsers(); renderUserLeaves(); alert('Sisa cuti diperbaharui');
 });
 
-/* ---------- Export CSV (improved safe quoting) ---------- */
+/* ---------- Export CSV (safe quoting) ---------- */
 document.getElementById('exportCSVBtn').addEventListener('click', ()=> {
   const leavesSorted = [...leaveRequests].sort((a,b)=> (b.id && a.id) ? ((b.id>a.id)?1:-1) : (new Date(b.start)-new Date(a.start)));
   let csv = `"Username","Periode","Hari","Alasan","Status","Keterangan Admin"\n`;
@@ -425,7 +470,7 @@ document.getElementById('exportPDFBtn').addEventListener('click', ()=> {
     body: rows,
     styles:{fontSize:10,cellPadding:6},
     headStyles:{fillColor:[52,152,219],textColor:255},
-    alternateRowStyles:{fillColor:[245,245,245]},
+    alternateRowStyles:{fillColor:[250,250,250]},
     margin:{left:40,right:40},
     didParseCell: function(data){
       // color status column (index 4)
@@ -478,7 +523,6 @@ function populateFilterOptions(){
 }
 
 /* ---------- DELETE BY DATE RANGE: logic & UI handler ---------- */
-// Helper to check overlap between two date ranges (inclusive)
 function rangesOverlap(aStart, aEnd, bStart, bEnd){
   return (aStart <= bEnd) && (bStart <= aEnd);
 }
@@ -491,7 +535,6 @@ document.getElementById('btnDeleteRange').addEventListener('click', ()=> {
   const end = new Date(e);
   if(end < start){ alert('Tanggal akhir harus sama atau setelah tanggal awal.'); return; }
 
-  // count overlapping leave requests
   const toDelete = leaveRequests.filter(r => {
     const rs = new Date(r.start);
     const re = new Date(r.end);
@@ -505,7 +548,6 @@ document.getElementById('btnDeleteRange').addEventListener('click', ()=> {
 
   if(!confirm(`Akan menghapus ${toDelete.length} pengajuan cuti yang overlap rentang ${s} → ${e}.\nLanjutkan?`)) return;
 
-  // perform deletion: keep those NOT overlapping
   leaveRequests = leaveRequests.filter(r => {
     const rs = new Date(r.start);
     const re = new Date(r.end);
