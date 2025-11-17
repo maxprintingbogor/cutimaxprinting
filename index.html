@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Sistem Cuti Maxprinting</title>
+<title>Sistem Cuti — Final (diperbaiki)</title>
 <style>
 :root{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
 body{max-width:1100px;margin:24px auto;padding:20px;background:#f7fafc;color:#0f172a}
@@ -34,11 +34,24 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
 @media (max-width:900px){ form{grid-template-columns:1fr} .actions{flex-direction:column;align-items:stretch} table{font-size:13px} }
 .export{background:#3b82f6;color:white}
 .note-small{font-size:13px;color:#64748b}
+
+/* calendar */
+.calendar-wrap{background:white;border-radius:10px;padding:12px;margin-top:14px;box-shadow:0 6px 18px rgba(12,24,40,0.03)}
+.cal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-day{padding:6px;background:transparent;border-radius:6px;text-align:center;font-size:13px;font-weight:700;color:#475569}
+.cal-cell{padding:8px;border-radius:8px;text-align:center;background:#fff;border:1px solid #edf2f7;min-height:44px;display:flex;align-items:center;justify-content:center}
+.cal-disabled{opacity:0.35;background:#f1f5f9}
+.cal-marked{background:#fff0f6;border-color:#ffb3c0;box-shadow:inset 0 -3px 0 rgba(251,113,133,0.12)}
+.cal-today{box-shadow:0 0 0 2px rgba(14,165,173,0.08);border-color:#0ea5ad}
+.cal-nav{padding:6px 10px;border-radius:8px;border:1px solid #e6edf3;background:#fff;cursor:pointer}
+.cal-legend{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:8px}
+.legend-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.legend-applied{background:#ffbed0}
 </style>
 
-<!-- jsPDF + AutoTable (AutoTable must be loaded after jsPDF) -->
+<!-- jsPDF (optional for export) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 
@@ -88,6 +101,17 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
     <hr style="margin:12px 0">
 
     <h3>Permintaan Cuti (Admin)</h3>
+
+    <!-- CALENDAR ADMIN -->
+    <div id="adminCalendar" class="calendar-wrap" aria-label="Kalender admin">
+      <div class="cal-header">
+        <button class="cal-nav" id="adminPrev">←</button>
+        <strong id="adminCalTitle"></strong>
+        <button class="cal-nav" id="adminNext">→</button>
+      </div>
+      <div id="adminCalGrid" class="cal-grid"></div>
+      <div class="cal-legend"><span class="legend-dot legend-applied"></span> Tanda: Sudah ada pengajuan</div>
+    </div>
 
     <!-- FILTERS -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
@@ -158,6 +182,18 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
 
     <p id="leaveQuotaDisplay"></p>
 
+    <!-- CALENDAR USER -->
+    <h3>Kalender Pengajuan Cuti (Anda)</h3>
+    <div id="userCalendar" class="calendar-wrap" aria-label="Kalender user">
+      <div class="cal-header">
+        <button class="cal-nav" id="userPrev">←</button>
+        <strong id="userCalTitle"></strong>
+        <button class="cal-nav" id="userNext">→</button>
+      </div>
+      <div id="userCalGrid" class="cal-grid"></div>
+      <div class="cal-legend"><span class="legend-dot legend-applied"></span> Tanda: Sudah ada pengajuan</div>
+    </div>
+
     <h3>Ganti Password</h3>
     <form id="changePassForm" style="margin-bottom:12px">
       <div><label>Password Lama</label><input type="password" id="oldPass" required></div>
@@ -191,12 +227,25 @@ function saveLeaves(){ localStorage.setItem('leaveRequests', JSON.stringify(leav
 function daysBetween(a,b){ return Math.floor((new Date(b) - new Date(a))/(1000*60*60*24)) + 1; }
 function getLoggedUser(){ return JSON.parse(localStorage.getItem('loggedUser')); }
 
-/* ---------- Helpers: keep loggedUser in sync ---------- */
+/* ---------- Utility: adjust user quota safely ---------- */
+function adjustUserQuota(username, delta){
+  const u = users.find(x => x.username === username);
+  if(!u) return;
+  u.quota = Math.max(0, (parseInt(u.quota) || 0) + parseInt(delta));
+  saveUsers();
+  // sync session if same user logged in
+  const logged = getLoggedUser();
+  if(logged && logged.username === username){
+    const updated = Object.assign({}, u);
+    localStorage.setItem('loggedUser', JSON.stringify(updated));
+  }
+}
+
+/* ---------- Helpers ---------- */
 function syncLoggedUserIfMatches(username, newUserObj){
   const logged = getLoggedUser();
   if(!logged) return;
   if(logged.username === username){
-    // update stored loggedUser to reflect latest user object
     localStorage.setItem('loggedUser', JSON.stringify(newUserObj));
   }
 }
@@ -210,9 +259,9 @@ function renderUsers(){
     tr.innerHTML = `<td>${u.username}</td><td>${u.email || '-'}</td><td>*****</td><td>${u.role}</td><td>${u.quota}</td><td></td>`;
     const actionsTd = tr.querySelector('td:last-child');
 
-    // edit user
     const editBtn = document.createElement('button'); editBtn.className='small-btn edit'; editBtn.textContent='Edit';
     editBtn.onclick = () => {
+      const oldName = u.username;
       const newUser = prompt('Username:', u.username);
       const newEmail = prompt('Email (opsional):', u.email || '');
       const newPwd = prompt('Password (kosong = tetap):', '');
@@ -223,18 +272,22 @@ function renderUsers(){
       if(newPwd) u.password = newPwd;
       if(newRole) u.role = newRole;
       if(!isNaN(parseInt(newQuota))) u.quota = parseInt(newQuota);
-      saveUsers(); renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered();
+      saveUsers();
+
+      if(newUser && oldName !== newUser){
+        leaveRequests.forEach(r => { if(r.username === oldName) r.username = newUser; });
+        saveLeaves();
+      }
+
+      renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderAllCalendars();
       alert('Perubahan disimpan');
-      // sync loggedUser if admin is editing themselves
       syncLoggedUserIfMatches(u.username, u);
       updateWhoami();
     };
 
-    // delete user: ONLY remove account, keep leaveRequests intact
     const delBtn = document.createElement('button'); delBtn.className='small-btn delete'; delBtn.textContent='Hapus';
     delBtn.onclick = () => {
       if(!confirm(`Hapus user "${u.username}"? (pengajuan cuti TIDAK akan dihapus)`)) return;
-      // if deleting currently loggedUser, remove loggedUser so they get logged out automatically
       const logged = getLoggedUser();
       const removedUsername = u.username;
       users.splice(idx,1);
@@ -245,7 +298,7 @@ function renderUsers(){
         location.reload();
         return;
       }
-      renderUsers(); renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions();
+      renderUsers(); renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions(); renderAllCalendars();
     };
 
     actionsTd.appendChild(editBtn); actionsTd.appendChild(document.createTextNode(' ')); actionsTd.appendChild(delBtn);
@@ -264,7 +317,6 @@ function renderAdminLeavesFiltered(){
   const tbody = document.querySelector('#adminLeaveTable tbody');
   tbody.innerHTML = '';
 
-  // sort newest first by id timestamp if available, otherwise by start date desc
   const leavesSorted = [...leaveRequests].sort((a,b)=>{
     if(a.id && b.id) return (b.id > a.id) ? 1 : -1;
     return new Date(b.start) - new Date(a.start);
@@ -272,10 +324,9 @@ function renderAdminLeavesFiltered(){
 
   leavesSorted.forEach((r) => {
     const start = new Date(r.start);
-    const end = new Date(r.end);
     if(statusFilter !== 'all' && r.status !== statusFilter) return;
     if(userFilter !== 'all' && r.username !== userFilter) return;
-    if(dateFilter){ const d = new Date(dateFilter); if(!(d >= start && d <= end)) return; }
+    if(dateFilter){ const d = new Date(dateFilter); if(!(d >= new Date(r.start) && d <= new Date(r.end))) return; }
     if(monthFilter !== 'all'){ if((start.getMonth()+1).toString() !== monthFilter) return; }
     if(yearFilter !== 'all'){ if(start.getFullYear().toString() !== yearFilter) return; }
 
@@ -283,38 +334,37 @@ function renderAdminLeavesFiltered(){
     tr.innerHTML = `<td>${r.username}</td><td>${r.start} → ${r.end}</td><td>${r.days}</td><td>${(r.reason||'-')}</td><td><span class="status ${r.status}">${r.status}</span></td><td>${(r.note||'-')}</td><td></td>`;
     const actionsTd = tr.querySelector('td:last-child');
 
-    // approve
     const aBtn = document.createElement('button'); aBtn.className='small-btn approve'; aBtn.textContent='Setujui';
     aBtn.onclick = () => {
       if(!confirm('Setujui pengajuan ini?')) return;
       const note = prompt('Keterangan persetujuan (opsional):','Disetujui') || 'Disetujui';
-      r.status = 'approved'; r.note = note;
-      const usr = users.find(u => u.username === r.username);
-      if(usr){
-        usr.quota = Math.max(0, (parseInt(usr.quota)||0) - r.days);
-        saveUsers();
-        // if approved user is currently logged in, sync
-        syncLoggedUserIfMatches(usr.username, usr);
+      if(r.status !== 'approved'){
+        adjustUserQuota(r.username, -r.days);
       }
-      saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions();
+      r.status = 'approved'; r.note = note;
+      saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
     };
 
-    // reject
     const rBtn = document.createElement('button'); rBtn.className='small-btn reject'; rBtn.textContent='Tolak';
     rBtn.onclick = () => {
       if(!confirm('Tolak pengajuan ini?')) return;
       const note = prompt('Alasan penolakan (opsional):','Ditolak') || 'Ditolak';
+      if(r.status === 'approved'){
+        adjustUserQuota(r.username, +r.days);
+      }
       r.status = 'rejected'; r.note = note;
-      saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves();
+      saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
     };
 
-    // delete
     const dBtn = document.createElement('button'); dBtn.className='small-btn delete'; dBtn.textContent='Hapus';
     dBtn.onclick = () => {
       if(!confirm('Hapus pengajuan ini?')) return;
+      if(r.status === 'approved'){
+        adjustUserQuota(r.username, +r.days);
+      }
       const realIndex = leaveRequests.findIndex(x => x.id === r.id && x.username === r.username && x.start === r.start && x.end === r.end);
       if(realIndex > -1){ leaveRequests.splice(realIndex,1); saveLeaves(); }
-      renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions();
+      renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions(); renderAllCalendars();
     };
 
     actionsTd.appendChild(aBtn); actionsTd.appendChild(document.createTextNode(' '));
@@ -323,13 +373,15 @@ function renderAdminLeavesFiltered(){
 
     tbody.appendChild(tr);
   });
+
+  // keep calendar updated (admin)
+  renderCalendar('admin');
 }
 
 /* ---------- User side: render history & quota ---------- */
 function renderUserLeaves(){
   const tbody = document.querySelector('#leaveTable tbody'); tbody.innerHTML = '';
   const u = getLoggedUser(); if(!u) return;
-  // newest first for user as well
   const myLeaves = leaveRequests.filter(r => r.username === u.username).sort((a,b)=> {
     if(a.id && b.id) return (b.id > a.id) ? 1 : -1;
     return new Date(b.start) - new Date(a.start);
@@ -340,18 +392,19 @@ function renderUserLeaves(){
     tbody.appendChild(tr);
   });
   updateQuotaDisplay();
+  renderCalendar('user');
 }
 
 function updateQuotaDisplay(){
   const u = getLoggedUser(); if(!u) return;
-  const used = leaveRequests.filter(l => l.username === u.username && l.status === 'approved').reduce((a,b)=>a + (b.days||0),0);
-  const remaining = (u.quota || 0) - used;
-  // reflect remaining in users array display as well (keeps admin view consistent)
-  const usr = users.find(x => x.username === u.username);
-  if(usr) usr.quota = Math.max(0, remaining);
-  saveUsers();
-  document.getElementById('leaveQuotaDisplay').textContent = `Sisa Cuti: ${remaining}`;
-  // re-render users table for up-to-date quota
+  // authoritative quota is the one in users[]
+  const stored = users.find(x => x.username === u.username);
+  const storedQuota = stored ? (parseInt(stored.quota) || 0) : (u.quota || 0);
+  // update session copy to reflect authoritative user object
+  if(stored){
+    localStorage.setItem('loggedUser', JSON.stringify(stored));
+  }
+  document.getElementById('leaveQuotaDisplay').textContent = `Sisa Cuti: ${storedQuota}`;
   renderUsers();
 }
 
@@ -362,6 +415,7 @@ document.getElementById('loginForm').addEventListener('submit', e => {
   const pwd = document.getElementById('loginPassword').value.trim();
   const user = users.find(x => x.username === uname && x.password === pwd);
   if(!user){ alert('Login gagal — periksa username & password'); return; }
+  // store authoritative user object into session
   localStorage.setItem('loggedUser', JSON.stringify(user));
   showSections();
 });
@@ -380,7 +434,7 @@ document.getElementById('addUserForm').addEventListener('submit', e => {
   if(!username || !password){ alert('Username & password wajib diisi'); return; }
   if(users.find(u => u.username === username)){ alert('Username sudah ada'); return; }
   users.push({ username, password, email: email||'', role, quota: 12 });
-  saveUsers(); renderUsers(); populateFilterOptions();
+  saveUsers(); renderUsers(); populateFilterOptions(); renderAllCalendars();
   alert('User ditambahkan');
   e.target.reset();
 });
@@ -396,14 +450,13 @@ document.getElementById('leaveForm').addEventListener('submit', e => {
   const days = daysBetween(s,eDate);
   const reason = document.getElementById('leaveReason').value || '-';
 
-  // find overlaps with other users (any status)
   function overlaps(aStart,aEnd,bStart,bEnd){
     return (aStart <= bEnd) && (bStart <= aEnd);
   }
   const start = new Date(s);
   const end = new Date(eDate);
   const overlapsList = leaveRequests.filter(r => {
-    if(r.username === u.username) return false; // ignore own existing requests
+    if(r.username === u.username) return false;
     const rs = new Date(r.start), re = new Date(r.end);
     return overlaps(start,end,rs,re);
   }).map(r => `${r.username} (${r.start}→${r.end})`);
@@ -415,7 +468,7 @@ document.getElementById('leaveForm').addEventListener('submit', e => {
 
   const record = { id: 'r_'+Date.now(), username: u.username, start: s, end: eDate, days, reason, status: 'pending', note: '-' };
   leaveRequests.push(record);
-  saveLeaves(); renderUserLeaves(); renderAdminLeavesFiltered(); populateFilterOptions();
+  saveLeaves(); renderUserLeaves(); renderAdminLeavesFiltered(); populateFilterOptions(); renderAllCalendars();
   alert('Pengajuan terkirim');
   e.target.reset();
 });
@@ -438,7 +491,8 @@ document.getElementById('changePassForm').addEventListener('submit', e => {
 /* ---------- Reset quota (admin) ---------- */
 document.getElementById('resetQuotaBtn').addEventListener('click', ()=> {
   if(!confirm('Set sisa cuti semua user ke 12 hari?')) return;
-  users.forEach(u => u.quota = 12); saveUsers(); renderUsers(); renderUserLeaves(); alert('Sisa cuti diperbaharui');
+  users.forEach(u => u.quota = 12); saveUsers(); renderUsers(); renderUserLeaves(); renderAllCalendars();
+  alert('Sisa cuti diperbaharui');
 });
 
 /* ---------- Export CSV (safe quoting) ---------- */
@@ -453,59 +507,23 @@ document.getElementById('exportCSVBtn').addEventListener('click', ()=> {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'permintaan_cuti.csv'; a.click();
 });
 
-/* ---------- Export PDF (AutoTable) with footer & status colors ---------- */
+/* ---------- Export PDF (simple) ---------- */
 document.getElementById('exportPDFBtn').addEventListener('click', ()=> {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF("p","pt","a4");
-
   const leavesSorted = [...leaveRequests].sort((a,b)=> (b.id && a.id) ? ((b.id>a.id)?1:-1) : (new Date(b.start)-new Date(a.start)));
-  const rows = leavesSorted.map(r => [r.username, `${r.start} → ${r.end}`, r.days, r.reason || "-", r.status, r.note || "-"]);
-
-  doc.setFontSize(15);
-  doc.text("Data Permintaan Cuti", 40, 40);
-
-  doc.autoTable({
-    startY: 60,
-    head: [['Username','Periode','Hari','Alasan','Status','Keterangan Admin']],
-    body: rows,
-    styles:{fontSize:10,cellPadding:6},
-    headStyles:{fillColor:[52,152,219],textColor:255},
-    alternateRowStyles:{fillColor:[250,250,250]},
-    margin:{left:40,right:40},
-    didParseCell: function(data){
-      // color status column (index 4)
-      if (data.section === 'body' && data.column.index === 4) {
-        const status = (data.cell.raw || '').toString().toLowerCase();
-        if(status === 'approved' || status === 'disetujui') {
-          data.cell.styles.textColor = [0,120,0];
-          data.cell.styles.fontStyle = 'bold';
-        } else if(status === 'rejected' || status === 'ditolak') {
-          data.cell.styles.textColor = [180,0,0];
-          data.cell.styles.fontStyle = 'bold';
-        } else {
-          // pending
-          data.cell.styles.textColor = [190,150,0];
-          data.cell.styles.fontStyle = 'bold';
-        }
-      }
-    },
-    didDrawPage: function(data){
-      const pageHeight = doc.internal.pageSize.height;
-      const printedAt = new Date().toLocaleString("id-ID", {
-        day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
-      });
-      doc.setFontSize(9);
-      doc.setTextColor(120);
-      doc.text(`Dicetak pada: ${printedAt}`, data.settings.margin.left, pageHeight - 20);
-      const pageCount = doc.internal.getNumberOfPages();
-      doc.text(`Halaman ${pageCount}`, doc.internal.pageSize.width - 120, pageHeight - 20);
-    }
+  doc.setFontSize(15); doc.text("Data Permintaan Cuti", 40, 40);
+  let y = 60; doc.setFontSize(10);
+  leavesSorted.forEach(r=>{
+    const line = `${r.username} | ${r.start} → ${r.end} | ${r.days} | ${r.reason || '-'} | ${r.status} | ${r.note || '-'}`;
+    doc.text(line, 40, y);
+    y += 12;
+    if(y > doc.internal.pageSize.height - 40){ doc.addPage(); y = 40; }
   });
-
   doc.save('permintaan_cuti.pdf');
 });
 
-/* ---------- Populate filters: user & year and listeners ---------- */
+/* ---------- Populate filters ---------- */
 function populateFilterOptions(){
   const userSelect = document.getElementById('filterUser');
   userSelect.innerHTML = '<option value="all">Semua</option>';
@@ -522,48 +540,133 @@ function populateFilterOptions(){
   });
 }
 
-/* ---------- DELETE BY DATE RANGE: logic & UI handler ---------- */
-function rangesOverlap(aStart, aEnd, bStart, bEnd){
-  return (aStart <= bEnd) && (bStart <= aEnd);
-}
-
+/* ---------- DELETE BY DATE RANGE ---------- */
+function rangesOverlap(aStart, aEnd, bStart, bEnd){ return (aStart <= bEnd) && (bStart <= aEnd); }
 document.getElementById('btnDeleteRange').addEventListener('click', ()=> {
   const s = document.getElementById('deleteRangeStart').value;
   const e = document.getElementById('deleteRangeEnd').value;
   if(!s || !e){ alert('Isi kedua tanggal (awal & akhir) untuk penghapusan.'); return; }
-  const start = new Date(s);
-  const end = new Date(e);
+  const start = new Date(s); const end = new Date(e);
   if(end < start){ alert('Tanggal akhir harus sama atau setelah tanggal awal.'); return; }
 
   const toDelete = leaveRequests.filter(r => {
-    const rs = new Date(r.start);
-    const re = new Date(r.end);
+    const rs = new Date(r.start); const re = new Date(r.end);
     return rangesOverlap(start, end, rs, re);
   });
-
-  if(toDelete.length === 0){
-    alert('Tidak ada pengajuan cuti dalam rentang tanggal tersebut.');
-    return;
-  }
-
+  if(toDelete.length === 0){ alert('Tidak ada pengajuan cuti dalam rentang tanggal tersebut.'); return; }
   if(!confirm(`Akan menghapus ${toDelete.length} pengajuan cuti yang overlap rentang ${s} → ${e}.\nLanjutkan?`)) return;
 
+  toDelete.forEach(r => { if(r.status === 'approved'){ adjustUserQuota(r.username, +r.days); } });
   leaveRequests = leaveRequests.filter(r => {
-    const rs = new Date(r.start);
-    const re = new Date(r.end);
+    const rs = new Date(r.start); const re = new Date(r.end);
     return !rangesOverlap(start, end, rs, re);
   });
-
-  saveLeaves();
-  populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves();
+  saveLeaves(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); renderAllCalendars();
   alert(`${toDelete.length} pengajuan cuti berhasil dihapus.`);
 });
 
-/* ---------- Whoami & Show sections ---------- */
-function updateWhoami(){
-  const u = getLoggedUser();
-  document.getElementById('whoami').textContent = u ? `${u.username} (${u.role})` : '';
+/* ---------- Calendar component (admin & user) ---------- */
+const calState = {
+  admin: { month: new Date().getMonth(), year: new Date().getFullYear() },
+  user:  { month: new Date().getMonth(), year: new Date().getFullYear() }
+};
+
+function addMonths(month, year, delta){
+  month += delta;
+  while(month<0){ month += 12; year -= 1; }
+  while(month>11){ month -= 12; year += 1; }
+  return { month, year };
 }
+
+function renderCalendar(who){
+  const state = calState[who];
+  const now = new Date();
+  // Prevent showing past months before current month
+  if(state.year < now.getFullYear() || (state.year === now.getFullYear() && state.month < now.getMonth())){
+    state.year = now.getFullYear();
+    state.month = now.getMonth();
+  }
+
+  const grid = document.getElementById(who + 'CalGrid');
+  const title = document.getElementById(who + 'CalTitle');
+  grid.innerHTML = '';
+
+  const months = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  title.textContent = months[state.month] + ' ' + state.year;
+
+  const dayNames = ["Sen","Sel","Rab","Kam","Jum","Sab","Min"];
+  dayNames.forEach(d=>{
+    const h = document.createElement('div');
+    h.className = 'cal-day';
+    h.textContent = d;
+    grid.appendChild(h);
+  });
+
+  const first = new Date(state.year, state.month, 1);
+  const last = new Date(state.year, state.month + 1, 0);
+  const startDay = first.getDay();
+  const max = startDay === 0 ? 6 : startDay - 1;
+
+  for(let i=0;i<max;i++){
+    const div = document.createElement('div');
+    div.className = 'cal-cell cal-disabled';
+    grid.appendChild(div);
+  }
+
+  // marked dates: any leaveRequests that overlap and match the displayed month/year
+  const marked = new Set();
+  leaveRequests.forEach(r=>{
+    let s = new Date(r.start), e = new Date(r.end);
+    let cur = new Date(s);
+    while(cur <= e){
+      if(cur.getMonth() === state.month && cur.getFullYear() === state.year){
+        marked.add(cur.getDate());
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+  });
+
+  const today = new Date();
+  for(let d=1; d<=last.getDate(); d++){
+    const div = document.createElement('div');
+    div.className = 'cal-cell';
+    div.textContent = d;
+    if(state.year === today.getFullYear() && state.month === today.getMonth() && d === today.getDate()){
+      div.classList.add('cal-today');
+    }
+    if(marked.has(d)){
+      div.classList.add('cal-marked');
+      div.title = 'Sudah ada pengajuan pada tanggal ini';
+    }
+    grid.appendChild(div);
+  }
+}
+
+// render both
+function renderAllCalendars(){ renderCalendar('admin'); renderCalendar('user'); }
+
+// admin nav
+document.getElementById('adminPrev').addEventListener('click', ()=>{
+  const now = new Date();
+  const s = calState.admin;
+  const before = addMonths(s.month, s.year, -1);
+  if(before.year < now.getFullYear() || (before.year === now.getFullYear() && before.month < now.getMonth())) return;
+  calState.admin = before; renderCalendar('admin');
+});
+document.getElementById('adminNext').addEventListener('click', ()=>{ calState.admin = addMonths(calState.admin.month, calState.admin.year, 1); renderCalendar('admin'); });
+
+// user nav
+document.getElementById('userPrev').addEventListener('click', ()=>{
+  const now = new Date();
+  const s = calState.user;
+  const before = addMonths(s.month, s.year, -1);
+  if(before.year < now.getFullYear() || (before.year === now.getFullYear() && before.month < now.getMonth())) return;
+  calState.user = before; renderCalendar('user');
+});
+document.getElementById('userNext').addEventListener('click', ()=>{ calState.user = addMonths(calState.user.month, calState.user.year, 1); renderCalendar('user'); });
+
+/* ---------- Whoami & Show sections ---------- */
+function updateWhoami(){ const u = getLoggedUser(); document.getElementById('whoami').textContent = u ? `${u.username} (${u.role})` : ''; }
 
 function showSections(){
   const u = getLoggedUser();
@@ -574,18 +677,18 @@ function showSections(){
   if(u.role === 'admin'){
     document.getElementById('adminSection').style.display = 'block';
     document.getElementById('userSection').style.display = 'none';
-    renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered();
+    renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderAllCalendars();
   } else {
     document.getElementById('adminSection').style.display = 'none';
     document.getElementById('userSection').style.display = 'block';
-    renderUserLeaves(); renderUsers(); populateFilterOptions();
+    renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
   }
 }
 
-/* ---------- Init / Keep logged in ---------- */
+/* ---------- Init ---------- */
 if(localStorage.getItem('loggedUser')) showSections();
-else { renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); }
-window.addEventListener('load', ()=>{ renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); updateWhoami(); });
+else { renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); renderAllCalendars(); }
+window.addEventListener('load', ()=>{ renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); updateWhoami(); renderAllCalendars(); });
 </script>
 </body>
 </html>
