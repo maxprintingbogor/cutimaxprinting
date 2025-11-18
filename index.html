@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="id">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Sistem Cuti — Final (diperbaiki)</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sistem Cuti Online</title>
 <style>
-:root{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+:root{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
 body{max-width:1100px;margin:24px auto;padding:20px;background:#f7fafc;color:#0f172a}
 .card{background:white;border-radius:10px;padding:14px;box-shadow:0 6px 18px rgba(12,24,40,0.06);margin-top:16px}
 form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -25,33 +25,40 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
 .status{padding:6px 10px;border-radius:999px;font-weight:700;display:inline-block;font-size:13px}
 .pending{background:#fff7ed;color:#92400e}
 .approved{background:#ecfdf5;color:#065f46}
-.rejected{background:#fff1f2;color:#9f1239}
+.rejected{background:#fee2e2;color:#9f1239}
 .small-btn{padding:6px 8px;border-radius:8px;border:0;cursor:pointer;margin-right:6px;font-size:13px}
 .approve{background:#10b981;color:white}
 .reject{background:#ef4444;color:white}
 .delete{background:#f43f5e;color:white}
 .edit{background:#facc15;color:#08204a}
 @media (max-width:900px){ form{grid-template-columns:1fr} .actions{flex-direction:column;align-items:stretch} table{font-size:13px} }
-.export{background:#3b82f6;color:white}
-.note-small{font-size:13px;color:#64748b}
-
-/* calendar */
-.calendar-wrap{background:white;border-radius:10px;padding:12px;margin-top:14px;box-shadow:0 6px 18px rgba(12,24,40,0.03)}
-.cal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-.cal-day{padding:6px;background:transparent;border-radius:6px;text-align:center;font-size:13px;font-weight:700;color:#475569}
-.cal-cell{padding:8px;border-radius:8px;text-align:center;background:#fff;border:1px solid #edf2f7;min-height:44px;display:flex;align-items:center;justify-content:center}
-.cal-disabled{opacity:0.35;background:#f1f5f9}
-.cal-marked{background:#fff0f6;border-color:#ffb3c0;box-shadow:inset 0 -3px 0 rgba(251,113,133,0.12)}
+.cal-cell{padding:8px;border-radius:8px;text-align:center;background:#fff;border:1px solid #edf2f7;min-height:44px;display:flex;align-items:center;justify-content:center;margin:2px;}
 .cal-today{box-shadow:0 0 0 2px rgba(14,165,173,0.08);border-color:#0ea5ad}
-.cal-nav{padding:6px 10px;border-radius:8px;border:1px solid #e6edf3;background:#fff;cursor:pointer}
-.cal-legend{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:8px}
-.legend-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
-.legend-applied{background:#ffbed0}
+.cal-marked{font-weight:700}
 </style>
+<!-- Firebase SDK -->
+<script type="module">
+  // Import Firebase SDK
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-firestore.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-auth.js";
 
-<!-- jsPDF (optional for export) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  // TODO: ganti dengan config Firebase-mu
+ const firebaseConfig = {
+  apiKey: "AIzaSyBVU2VsuFp8X2qxkSglbuKpbODu9d_v9i0",
+  authDomain: "sistemcuti-dcc63.firebaseapp.com",
+  projectId: "sistemcuti-dcc63",
+  storageBucket: "sistemcuti-dcc63.firebasestorage.app",
+  messagingSenderId: "410423854240",
+  appId: "1:410423854240:web:a7531c304c725253b135c5"
+};
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  window.db = db;
+  window.auth = auth;
+</script>
 </head>
 <body>
 
@@ -59,12 +66,24 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
 <section class="card" id="loginSection">
   <h2>Login</h2>
   <form id="loginForm">
-    <div><label>Username</label><input id="loginUsername" required></div>
+    <div><label>Email</label><input type="email" id="loginEmail" required></div>
     <div><label>Password</label><input type="password" id="loginPassword" required></div>
     <div class="actions">
       <button type="submit">Login</button>
     </div>
   </form>
+  <p>Belum punya akun? <a href="#" id="showRegister">Daftar</a></p>
+</section>
+
+<!-- REGISTER -->
+<section class="card" id="registerSection" style="display:none">
+  <h2>Daftar</h2>
+  <form id="registerForm">
+    <div><label>Email</label><input type="email" id="regEmail" required></div>
+    <div><label>Password</label><input type="password" id="regPassword" required></div>
+    <div class="actions"><button type="submit">Daftar</button></div>
+  </form>
+  <p>Sudah punya akun? <a href="#" id="showLogin">Login</a></p>
 </section>
 
 <!-- MAIN -->
@@ -72,623 +91,135 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
   <header style="display:flex;align-items:center;gap:12px">
     <h1 style="margin:0">Sistem Cuti</h1>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-      <span id="whoami" style="font-size:14px;color:#334155"></span>
+      <span id="whoami"></span>
       <button id="logoutBtn" class="ghost">Logout</button>
     </div>
   </header>
 
-  <!-- ADMIN -->
-  <div id="adminSection" style="display:none;margin-top:12px">
-    <h3>Manajemen Akun</h3>
-    <form id="addUserForm" style="margin-bottom:12px">
-      <div><label>Username</label><input id="newUsername" required></div>
-      <div><label>Password</label><input id="newPassword" required></div>
-      <div><label>Email (opsional)</label><input id="newEmail"></div>
-      <div>
-        <label>Role</label>
-        <select id="newRole"><option value="user">User</option><option value="admin">Admin</option></select>
-      </div>
-      <div class="actions"><button type="submit">Tambah User/Admin</button><button type="button" id="resetQuotaBtn" class="ghost">Reset Cuti Semua</button></div>
-    </form>
-
-    <div class="table-wrap">
-      <table id="usersTable">
-        <thead><tr><th>Username</th><th>Email</th><th>Password</th><th>Role</th><th>Sisa Cuti</th><th>Aksi</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <hr style="margin:12px 0">
-
-    <h3>Permintaan Cuti (Admin)</h3>
-
-    <!-- CALENDAR ADMIN -->
-    <div id="adminCalendar" class="calendar-wrap" aria-label="Kalender admin">
-      <div class="cal-header">
-        <button class="cal-nav" id="adminPrev">←</button>
-        <strong id="adminCalTitle"></strong>
-        <button class="cal-nav" id="adminNext">→</button>
-      </div>
-      <div id="adminCalGrid" class="cal-grid"></div>
-      <div class="cal-legend"><span class="legend-dot legend-applied"></span> Tanda: Sudah ada pengajuan</div>
-    </div>
-
-    <!-- FILTERS -->
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <div>
-        <label>Status</label>
-        <select id="filterStatus"><option value="all">Semua</option><option value="pending">Pending</option><option value="approved">Disetujui</option><option value="rejected">Ditolak</option></select>
-      </div>
-      <div>
-        <label>User</label>
-        <select id="filterUser"><option value="all">Semua</option></select>
-      </div>
-      <div>
-        <label>Tanggal (tepat)</label>
-        <input type="date" id="filterDate">
-      </div>
-      <div>
-        <label>Bulan</label>
-        <select id="filterMonth"><option value="all">Semua</option>
-          <option value="1">Januari</option><option value="2">Februari</option><option value="3">Maret</option>
-          <option value="4">April</option><option value="5">Mei</option><option value="6">Juni</option>
-          <option value="7">Juli</option><option value="8">Agustus</option><option value="9">September</option>
-          <option value="10">Oktober</option><option value="11">November</option><option value="12">Desember</option>
-        </select>
-      </div>
-      <div>
-        <label>Tahun</label>
-        <select id="filterYear"><option value="all">Semua</option></select>
-      </div>
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:end">
-        <button id="exportCSVBtn" class="ghost">Export CSV</button>
-        <button id="exportPDFBtn" class="ghost">Export PDF</button>
-      </div>
-    </div>
-
-    <!-- DELETE BY DATE RANGE -->
-    <div style="display:flex;gap:8px;align-items:end;margin-bottom:12px">
-      <div>
-        <label>Hapus Cuti - Dari tanggal</label>
-        <input type="date" id="deleteRangeStart">
-      </div>
-      <div>
-        <label>Sampai tanggal</label>
-        <input type="date" id="deleteRangeEnd">
-      </div>
-      <div style="align-self:flex-end">
-        <button id="btnDeleteRange" class="ghost">Hapus Cuti dalam Rentang</button>
-      </div>
-      <div style="align-self:flex-end;color:#64748b;font-size:13px">(Hanya menghapus pengajuan, <strong>tidak menghapus user</strong>)</div>
-    </div>
-
-    <div class="table-wrap">
-      <table id="adminLeaveTable">
-        <thead><tr><th>Username</th><th>Periode</th><th>Hari</th><th>Alasan</th><th>Status</th><th>Keterangan Admin</th><th>Aksi</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- USER -->
-  <div id="userSection" style="display:none;margin-top:12px">
-    <h3>Pengajuan Cuti</h3>
-    <form id="leaveForm" style="margin-bottom:12px">
+  <div id="userSection" style="margin-top:12px">
+    <h3>Ajukan Cuti</h3>
+    <form id="leaveForm">
       <div><label>Tanggal Mulai</label><input type="date" id="leaveStart" required></div>
       <div><label>Tanggal Selesai</label><input type="date" id="leaveEnd" required></div>
       <div style="grid-column:1/-1"><label>Alasan</label><textarea id="leaveReason"></textarea></div>
       <div class="actions"><button type="submit">Ajukan Cuti</button></div>
     </form>
 
-    <p id="leaveQuotaDisplay"></p>
-
-    <!-- CALENDAR USER -->
     <h3>Kalender Pengajuan Cuti (Anda)</h3>
-    <div id="userCalendar" class="calendar-wrap" aria-label="Kalender user">
-      <div class="cal-header">
-        <button class="cal-nav" id="userPrev">←</button>
-        <strong id="userCalTitle"></strong>
-        <button class="cal-nav" id="userNext">→</button>
-      </div>
-      <div id="userCalGrid" class="cal-grid"></div>
-      <div class="cal-legend"><span class="legend-dot legend-applied"></span> Tanda: Sudah ada pengajuan</div>
+    <div style="display:flex;gap:5px;align-items:center;margin-bottom:5px;">
+      <button id="userPrev">←</button>
+      <strong id="userCalTitle"></strong>
+      <button id="userNext">→</button>
     </div>
-
-    <h3>Ganti Password</h3>
-    <form id="changePassForm" style="margin-bottom:12px">
-      <div><label>Password Lama</label><input type="password" id="oldPass" required></div>
-      <div><label>Password Baru</label><input type="password" id="newPass1" required></div>
-      <div><label>Ulangi Password Baru</label><input type="password" id="newPass2" required></div>
-      <div class="actions"><button type="submit">Perbarui Password</button></div>
-    </form>
-
-    <h3>Riwayat Pengajuan</h3>
-    <div class="table-wrap">
-      <table id="leaveTable">
-        <thead><tr><th>Periode</th><th>Hari</th><th>Alasan</th><th>Status</th><th>Keterangan Admin</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <div id="userCalGrid" style="display:grid;grid-template-columns:repeat(7,1fr);"></div>
   </div>
-
 </section>
 
-<script>
-/* ---------- Data init ---------- */
-let users = JSON.parse(localStorage.getItem('users') || '[]');
-function saveUsers(){ localStorage.setItem('users', JSON.stringify(users)); }
-if(users.length === 0){
-  users = [{ username: 'admin', password: 'admin123', email: 'admin@example.com', role: 'admin', quota: 12 }];
-  saveUsers();
-}
-let leaveRequests = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
-function saveLeaves(){ localStorage.setItem('leaveRequests', JSON.stringify(leaveRequests)); }
+<script type="module">
+import { db, auth } from window;
 
-function daysBetween(a,b){ return Math.floor((new Date(b) - new Date(a))/(1000*60*60*24)) + 1; }
-function getLoggedUser(){ return JSON.parse(localStorage.getItem('loggedUser')); }
+const loginForm=document.getElementById('loginForm');
+const registerForm=document.getElementById('registerForm');
+const leaveForm=document.getElementById('leaveForm');
+const loginSection=document.getElementById('loginSection');
+const registerSection=document.getElementById('registerSection');
+const mainSection=document.getElementById('mainSection');
+const whoami=document.getElementById('whoami');
+let loggedUser=null;
 
-/* ---------- Utility: adjust user quota safely ---------- */
-function adjustUserQuota(username, delta){
-  const u = users.find(x => x.username === username);
-  if(!u) return;
-  u.quota = Math.max(0, (parseInt(u.quota) || 0) + parseInt(delta));
-  saveUsers();
-  // sync session if same user logged in
-  const logged = getLoggedUser();
-  if(logged && logged.username === username){
-    const updated = Object.assign({}, u);
-    localStorage.setItem('loggedUser', JSON.stringify(updated));
-  }
-}
+// NAV LOGIN / REGISTER
+document.getElementById('showRegister').onclick=e=>{e.preventDefault(); loginSection.style.display='none'; registerSection.style.display='block';};
+document.getElementById('showLogin').onclick=e=>{e.preventDefault(); registerSection.style.display='none'; loginSection.style.display='block';};
 
-/* ---------- Helpers ---------- */
-function syncLoggedUserIfMatches(username, newUserObj){
-  const logged = getLoggedUser();
-  if(!logged) return;
-  if(logged.username === username){
-    localStorage.setItem('loggedUser', JSON.stringify(newUserObj));
-  }
-}
-
-/* ---------- Render users (admin table) ---------- */
-function renderUsers(){
-  const tbody = document.querySelector('#usersTable tbody');
-  tbody.innerHTML = '';
-  users.forEach((u, idx) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${u.username}</td><td>${u.email || '-'}</td><td>*****</td><td>${u.role}</td><td>${u.quota}</td><td></td>`;
-    const actionsTd = tr.querySelector('td:last-child');
-
-    const editBtn = document.createElement('button'); editBtn.className='small-btn edit'; editBtn.textContent='Edit';
-    editBtn.onclick = () => {
-      const oldName = u.username;
-      const newUser = prompt('Username:', u.username);
-      const newEmail = prompt('Email (opsional):', u.email || '');
-      const newPwd = prompt('Password (kosong = tetap):', '');
-      const newRole = prompt('Role (user/admin):', u.role);
-      const newQuota = prompt('Sisa Cuti (angka):', u.quota);
-      if(newUser) u.username = newUser;
-      u.email = (newEmail !== null) ? newEmail : u.email;
-      if(newPwd) u.password = newPwd;
-      if(newRole) u.role = newRole;
-      if(!isNaN(parseInt(newQuota))) u.quota = parseInt(newQuota);
-      saveUsers();
-
-      if(newUser && oldName !== newUser){
-        leaveRequests.forEach(r => { if(r.username === oldName) r.username = newUser; });
-        saveLeaves();
-      }
-
-      renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderAllCalendars();
-      alert('Perubahan disimpan');
-      syncLoggedUserIfMatches(u.username, u);
-      updateWhoami();
-    };
-
-    const delBtn = document.createElement('button'); delBtn.className='small-btn delete'; delBtn.textContent='Hapus';
-    delBtn.onclick = () => {
-      if(!confirm(`Hapus user "${u.username}"? (pengajuan cuti TIDAK akan dihapus)`)) return;
-      const logged = getLoggedUser();
-      const removedUsername = u.username;
-      users.splice(idx,1);
-      saveUsers();
-      if(logged && logged.username === removedUsername){
-        localStorage.removeItem('loggedUser');
-        alert('Anda (user yang dihapus) akan dikeluarkan dari sesi.');
-        location.reload();
-        return;
-      }
-      renderUsers(); renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions(); renderAllCalendars();
-    };
-
-    actionsTd.appendChild(editBtn); actionsTd.appendChild(document.createTextNode(' ')); actionsTd.appendChild(delBtn);
-    tbody.appendChild(tr);
-  });
-}
-
-/* ---------- Admin leaves (with filters, newest first) ---------- */
-function renderAdminLeavesFiltered(){
-  const statusFilter = document.getElementById('filterStatus').value || 'all';
-  const userFilter = document.getElementById('filterUser').value || 'all';
-  const dateFilter = document.getElementById('filterDate').value || '';
-  const monthFilter = document.getElementById('filterMonth').value || 'all';
-  const yearFilter = document.getElementById('filterYear').value || 'all';
-
-  const tbody = document.querySelector('#adminLeaveTable tbody');
-  tbody.innerHTML = '';
-
-  const leavesSorted = [...leaveRequests].sort((a,b)=>{
-    if(a.id && b.id) return (b.id > a.id) ? 1 : -1;
-    return new Date(b.start) - new Date(a.start);
-  });
-
-  leavesSorted.forEach((r) => {
-    const start = new Date(r.start);
-    if(statusFilter !== 'all' && r.status !== statusFilter) return;
-    if(userFilter !== 'all' && r.username !== userFilter) return;
-    if(dateFilter){ const d = new Date(dateFilter); if(!(d >= new Date(r.start) && d <= new Date(r.end))) return; }
-    if(monthFilter !== 'all'){ if((start.getMonth()+1).toString() !== monthFilter) return; }
-    if(yearFilter !== 'all'){ if(start.getFullYear().toString() !== yearFilter) return; }
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.username}</td><td>${r.start} → ${r.end}</td><td>${r.days}</td><td>${(r.reason||'-')}</td><td><span class="status ${r.status}">${r.status}</span></td><td>${(r.note||'-')}</td><td></td>`;
-    const actionsTd = tr.querySelector('td:last-child');
-
-    const aBtn = document.createElement('button'); aBtn.className='small-btn approve'; aBtn.textContent='Setujui';
-    aBtn.onclick = () => {
-      if(!confirm('Setujui pengajuan ini?')) return;
-      const note = prompt('Keterangan persetujuan (opsional):','Disetujui') || 'Disetujui';
-      if(r.status !== 'approved'){
-        adjustUserQuota(r.username, -r.days);
-      }
-      r.status = 'approved'; r.note = note;
-      saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
-    };
-
-    const rBtn = document.createElement('button'); rBtn.className='small-btn reject'; rBtn.textContent='Tolak';
-    rBtn.onclick = () => {
-      if(!confirm('Tolak pengajuan ini?')) return;
-      const note = prompt('Alasan penolakan (opsional):','Ditolak') || 'Ditolak';
-      if(r.status === 'approved'){
-        adjustUserQuota(r.username, +r.days);
-      }
-      r.status = 'rejected'; r.note = note;
-      saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
-    };
-
-    const dBtn = document.createElement('button'); dBtn.className='small-btn delete'; dBtn.textContent='Hapus';
-    dBtn.onclick = () => {
-      if(!confirm('Hapus pengajuan ini?')) return;
-      if(r.status === 'approved'){
-        adjustUserQuota(r.username, +r.days);
-      }
-      const realIndex = leaveRequests.findIndex(x => x.id === r.id && x.username === r.username && x.start === r.start && x.end === r.end);
-      if(realIndex > -1){ leaveRequests.splice(realIndex,1); saveLeaves(); }
-      renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions(); renderAllCalendars();
-    };
-
-    actionsTd.appendChild(aBtn); actionsTd.appendChild(document.createTextNode(' '));
-    actionsTd.appendChild(rBtn); actionsTd.appendChild(document.createTextNode(' '));
-    actionsTd.appendChild(dBtn);
-
-    tbody.appendChild(tr);
-  });
-
-  // keep calendar updated (admin)
-  renderCalendar('admin');
-}
-
-/* ---------- User side: render history & quota ---------- */
-function renderUserLeaves(){
-  const tbody = document.querySelector('#leaveTable tbody'); tbody.innerHTML = '';
-  const u = getLoggedUser(); if(!u) return;
-  const myLeaves = leaveRequests.filter(r => r.username === u.username).sort((a,b)=> {
-    if(a.id && b.id) return (b.id > a.id) ? 1 : -1;
-    return new Date(b.start) - new Date(a.start);
-  });
-  myLeaves.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.start} → ${r.end}</td><td>${r.days}</td><td>${(r.reason||'-')}</td><td><span class="status ${r.status}">${r.status}</span></td><td>${(r.note||'-')}</td>`;
-    tbody.appendChild(tr);
-  });
-  updateQuotaDisplay();
-  renderCalendar('user');
-}
-
-function updateQuotaDisplay(){
-  const u = getLoggedUser(); if(!u) return;
-  // authoritative quota is the one in users[]
-  const stored = users.find(x => x.username === u.username);
-  const storedQuota = stored ? (parseInt(stored.quota) || 0) : (u.quota || 0);
-  // update session copy to reflect authoritative user object
-  if(stored){
-    localStorage.setItem('loggedUser', JSON.stringify(stored));
-  }
-  document.getElementById('leaveQuotaDisplay').textContent = `Sisa Cuti: ${storedQuota}`;
-  renderUsers();
-}
-
-/* ---------- Login / Logout ---------- */
-document.getElementById('loginForm').addEventListener('submit', e => {
+// REGISTER
+registerForm.onsubmit=async e=>{
   e.preventDefault();
-  const uname = document.getElementById('loginUsername').value.trim();
-  const pwd = document.getElementById('loginPassword').value.trim();
-  const user = users.find(x => x.username === uname && x.password === pwd);
-  if(!user){ alert('Login gagal — periksa username & password'); return; }
-  // store authoritative user object into session
-  localStorage.setItem('loggedUser', JSON.stringify(user));
-  showSections();
-});
-
-document.getElementById('logoutBtn').addEventListener('click', ()=> {
-  localStorage.removeItem('loggedUser'); location.reload();
-});
-
-/* ---------- Admin: add user ---------- */
-document.getElementById('addUserForm').addEventListener('submit', e => {
-  e.preventDefault();
-  const username = document.getElementById('newUsername').value.trim();
-  const password = document.getElementById('newPassword').value.trim();
-  const email = document.getElementById('newEmail').value.trim();
-  const role = document.getElementById('newRole').value;
-  if(!username || !password){ alert('Username & password wajib diisi'); return; }
-  if(users.find(u => u.username === username)){ alert('Username sudah ada'); return; }
-  users.push({ username, password, email: email||'', role, quota: 12 });
-  saveUsers(); renderUsers(); populateFilterOptions(); renderAllCalendars();
-  alert('User ditambahkan');
-  e.target.reset();
-});
-
-/* ---------- Leave submit with overlap warning ---------- */
-document.getElementById('leaveForm').addEventListener('submit', e => {
-  e.preventDefault();
-  const u = getLoggedUser(); if(!u){ alert('Login terlebih dahulu'); return; }
-  const s = document.getElementById('leaveStart').value;
-  const eDate = document.getElementById('leaveEnd').value;
-  if(!s || !eDate){ alert('Pilih tanggal'); return; }
-  if(new Date(eDate) < new Date(s)){ alert('Tanggal selesai tidak boleh sebelum tanggal mulai'); return; }
-  const days = daysBetween(s,eDate);
-  const reason = document.getElementById('leaveReason').value || '-';
-
-  function overlaps(aStart,aEnd,bStart,bEnd){
-    return (aStart <= bEnd) && (bStart <= aEnd);
-  }
-  const start = new Date(s);
-  const end = new Date(eDate);
-  const overlapsList = leaveRequests.filter(r => {
-    if(r.username === u.username) return false;
-    const rs = new Date(r.start), re = new Date(r.end);
-    return overlaps(start,end,rs,re);
-  }).map(r => `${r.username} (${r.start}→${r.end})`);
-
-  if(overlapsList.length){
-    const proceed = confirm(`Terdapat ${overlapsList.length} pengajuan lain yang overlap:\n- ${overlapsList.join('\n- ')}\n\nLanjutkan mengajukan cuti?`);
-    if(!proceed) return;
-  }
-
-  const record = { id: 'r_'+Date.now(), username: u.username, start: s, end: eDate, days, reason, status: 'pending', note: '-' };
-  leaveRequests.push(record);
-  saveLeaves(); renderUserLeaves(); renderAdminLeavesFiltered(); populateFilterOptions(); renderAllCalendars();
-  alert('Pengajuan terkirim');
-  e.target.reset();
-});
-
-/* ---------- User: change password ---------- */
-document.getElementById('changePassForm').addEventListener('submit', e => {
-  e.preventDefault();
-  const u = getLoggedUser(); if(!u) return alert('Login terlebih dahulu');
-  const old = document.getElementById('oldPass').value;
-  const n1 = document.getElementById('newPass1').value;
-  const n2 = document.getElementById('newPass2').value;
-  if(old !== u.password) return alert('Password lama salah');
-  if(n1 !== n2) return alert('Password baru tidak sama');
-  if(n1.length < 4) return alert('Minimal 4 karakter');
-  const usr = users.find(x => x.username === u.username);
-  usr.password = n1; saveUsers(); localStorage.setItem('loggedUser', JSON.stringify(usr));
-  alert('Password berhasil diperbarui'); e.target.reset();
-});
-
-/* ---------- Reset quota (admin) ---------- */
-document.getElementById('resetQuotaBtn').addEventListener('click', ()=> {
-  if(!confirm('Set sisa cuti semua user ke 12 hari?')) return;
-  users.forEach(u => u.quota = 12); saveUsers(); renderUsers(); renderUserLeaves(); renderAllCalendars();
-  alert('Sisa cuti diperbaharui');
-});
-
-/* ---------- Export CSV (safe quoting) ---------- */
-document.getElementById('exportCSVBtn').addEventListener('click', ()=> {
-  const leavesSorted = [...leaveRequests].sort((a,b)=> (b.id && a.id) ? ((b.id>a.id)?1:-1) : (new Date(b.start)-new Date(a.start)));
-  let csv = `"Username","Periode","Hari","Alasan","Status","Keterangan Admin"\n`;
-  leavesSorted.forEach(r => {
-    const safe = txt => `"${(txt||'').toString().replace(/"/g,'""')}"`;
-    csv += `${safe(r.username)},${safe(r.start + ' → ' + r.end)},${safe(r.days)},${safe(r.reason||'-')},${safe(r.status)},${safe(r.note||'-')}\n`;
-  });
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'permintaan_cuti.csv'; a.click();
-});
-
-/* ---------- Export PDF (simple) ---------- */
-document.getElementById('exportPDFBtn').addEventListener('click', ()=> {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF("p","pt","a4");
-  const leavesSorted = [...leaveRequests].sort((a,b)=> (b.id && a.id) ? ((b.id>a.id)?1:-1) : (new Date(b.start)-new Date(a.start)));
-  doc.setFontSize(15); doc.text("Data Permintaan Cuti", 40, 40);
-  let y = 60; doc.setFontSize(10);
-  leavesSorted.forEach(r=>{
-    const line = `${r.username} | ${r.start} → ${r.end} | ${r.days} | ${r.reason || '-'} | ${r.status} | ${r.note || '-'}`;
-    doc.text(line, 40, y);
-    y += 12;
-    if(y > doc.internal.pageSize.height - 40){ doc.addPage(); y = 40; }
-  });
-  doc.save('permintaan_cuti.pdf');
-});
-
-/* ---------- Populate filters ---------- */
-function populateFilterOptions(){
-  const userSelect = document.getElementById('filterUser');
-  userSelect.innerHTML = '<option value="all">Semua</option>';
-  users.forEach(u => { const opt = document.createElement('option'); opt.value = u.username; opt.textContent = u.username; userSelect.appendChild(opt); });
-
-  const yearSelect = document.getElementById('filterYear');
-  yearSelect.innerHTML = '<option value="all">Semua</option>';
-  const years = new Set();
-  leaveRequests.forEach(r => { const y = new Date(r.start).getFullYear(); if(!isNaN(y)) years.add(y); });
-  Array.from(years).sort().forEach(y => { const opt = document.createElement('option'); opt.value = y; opt.textContent = y; yearSelect.appendChild(opt); });
-
-  ['filterStatus','filterUser','filterDate','filterMonth','filterYear'].forEach(id => {
-    const el = document.getElementById(id); if(el) el.addEventListener('change', renderAdminLeavesFiltered);
-  });
-}
-
-/* ---------- DELETE BY DATE RANGE ---------- */
-function rangesOverlap(aStart, aEnd, bStart, bEnd){ return (aStart <= bEnd) && (bStart <= aEnd); }
-document.getElementById('btnDeleteRange').addEventListener('click', ()=> {
-  const s = document.getElementById('deleteRangeStart').value;
-  const e = document.getElementById('deleteRangeEnd').value;
-  if(!s || !e){ alert('Isi kedua tanggal (awal & akhir) untuk penghapusan.'); return; }
-  const start = new Date(s); const end = new Date(e);
-  if(end < start){ alert('Tanggal akhir harus sama atau setelah tanggal awal.'); return; }
-
-  const toDelete = leaveRequests.filter(r => {
-    const rs = new Date(r.start); const re = new Date(r.end);
-    return rangesOverlap(start, end, rs, re);
-  });
-  if(toDelete.length === 0){ alert('Tidak ada pengajuan cuti dalam rentang tanggal tersebut.'); return; }
-  if(!confirm(`Akan menghapus ${toDelete.length} pengajuan cuti yang overlap rentang ${s} → ${e}.\nLanjutkan?`)) return;
-
-  toDelete.forEach(r => { if(r.status === 'approved'){ adjustUserQuota(r.username, +r.days); } });
-  leaveRequests = leaveRequests.filter(r => {
-    const rs = new Date(r.start); const re = new Date(r.end);
-    return !rangesOverlap(start, end, rs, re);
-  });
-  saveLeaves(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); renderAllCalendars();
-  alert(`${toDelete.length} pengajuan cuti berhasil dihapus.`);
-});
-
-/* ---------- Calendar component (admin & user) ---------- */
-const calState = {
-  admin: { month: new Date().getMonth(), year: new Date().getFullYear() },
-  user:  { month: new Date().getMonth(), year: new Date().getFullYear() }
+  const email=document.getElementById('regEmail').value;
+  const password=document.getElementById('regPassword').value;
+  try{
+    const cred=await createUserWithEmailAndPassword(auth,email,password);
+    alert('Daftar berhasil, silakan login');
+    registerSection.style.display='none'; loginSection.style.display='block';
+  }catch(err){ alert(err.message); }
 };
 
-function addMonths(month, year, delta){
-  month += delta;
-  while(month<0){ month += 12; year -= 1; }
-  while(month>11){ month -= 12; year += 1; }
-  return { month, year };
-}
+// LOGIN
+loginForm.onsubmit=async e=>{
+  e.preventDefault();
+  const email=document.getElementById('loginEmail').value;
+  const password=document.getElementById('loginPassword').value;
+  try{
+    const cred=await signInWithEmailAndPassword(auth,email,password);
+    loggedUser=cred.user;
+    loginSection.style.display='none';
+    mainSection.style.display='block';
+    whoami.textContent=email;
+    renderCalendar();
+  }catch(err){ alert(err.message); }
+};
 
-function renderCalendar(who){
-  const state = calState[who];
-  const now = new Date();
-  // Prevent showing past months before current month
-  if(state.year < now.getFullYear() || (state.year === now.getFullYear() && state.month < now.getMonth())){
-    state.year = now.getFullYear();
-    state.month = now.getMonth();
-  }
+// LOGOUT
+document.getElementById('logoutBtn').onclick=()=>{ signOut(auth).then(()=>{ location.reload(); }); };
 
-  const grid = document.getElementById(who + 'CalGrid');
-  const title = document.getElementById(who + 'CalTitle');
-  grid.innerHTML = '';
+// AJUKAN CUTI
+leaveForm.onsubmit=async e=>{
+  e.preventDefault();
+  const start=document.getElementById('leaveStart').value;
+  const end=document.getElementById('leaveEnd').value;
+  const reason=document.getElementById('leaveReason').value;
+  try{
+    await addDoc(collection(db,'leaveRequests'),{userId:loggedUser.uid,start,end,reason,status:'pending'});
+    alert('Pengajuan terkirim');
+    leaveForm.reset();
+    renderCalendar();
+  }catch(err){ alert(err.message); }
+};
 
-  const months = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
-  title.textContent = months[state.month] + ' ' + state.year;
+// CALENDAR
+const calGrid=document.getElementById('userCalGrid');
+const calTitle=document.getElementById('userCalTitle');
+let calMonth=new Date().getMonth();
+let calYear=new Date().getFullYear();
 
-  const dayNames = ["Sen","Sel","Rab","Kam","Jum","Sab","Min"];
-  dayNames.forEach(d=>{
-    const h = document.createElement('div');
-    h.className = 'cal-day';
-    h.textContent = d;
-    grid.appendChild(h);
-  });
+async function renderCalendar(){
+  calGrid.innerHTML='';
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const totalDays=new Date(calYear,calMonth+1,0).getDate();
 
-  const first = new Date(state.year, state.month, 1);
-  const last = new Date(state.year, state.month + 1, 0);
-  const startDay = first.getDay();
-  const max = startDay === 0 ? 6 : startDay - 1;
+  // Ambil semua cuti user
+  const q=query(collection(db,'leaveRequests'),where('userId','==',loggedUser.uid));
+  const snap=await getDocs(q);
+  const leaves=[];
+  snap.forEach(doc=>{ leaves.push(doc.data()); });
 
-  for(let i=0;i<max;i++){
-    const div = document.createElement('div');
-    div.className = 'cal-cell cal-disabled';
-    grid.appendChild(div);
-  }
+  for(let i=0;i<firstDay;i++){ const div=document.createElement('div'); div.className='cal-cell'; calGrid.appendChild(div); }
 
-  // marked dates: any leaveRequests that overlap and match the displayed month/year
-  const marked = new Set();
-  leaveRequests.forEach(r=>{
-    let s = new Date(r.start), e = new Date(r.end);
-    let cur = new Date(s);
-    while(cur <= e){
-      if(cur.getMonth() === state.month && cur.getFullYear() === state.year){
-        marked.add(cur.getDate());
+  for(let d=1;d<=totalDays;d++){
+    const div=document.createElement('div');
+    div.className='cal-cell';
+    div.textContent=d;
+    const thisDate=new Date(calYear,calMonth,d);
+
+    // tandai cuti
+    leaves.forEach(l=>{
+      const s=new Date(l.start), e=new Date(l.end);
+      if(thisDate>=s && thisDate<=e){
+        div.classList.add('cal-marked');
+        if(l.status==='pending') div.style.background='#fff7ed';
+        else if(l.status==='approved') div.style.background='#ecfdf5';
+        else if(l.status==='rejected') div.style.background='#fee2e2';
       }
-      cur.setDate(cur.getDate()+1);
-    }
-  });
-
-  const today = new Date();
-  for(let d=1; d<=last.getDate(); d++){
-    const div = document.createElement('div');
-    div.className = 'cal-cell';
-    div.textContent = d;
-    if(state.year === today.getFullYear() && state.month === today.getMonth() && d === today.getDate()){
-      div.classList.add('cal-today');
-    }
-    if(marked.has(d)){
-      div.classList.add('cal-marked');
-      div.title = 'Sudah ada pengajuan pada tanggal ini';
-    }
-    grid.appendChild(div);
+    });
+    calGrid.appendChild(div);
   }
+  const monthNames=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  calTitle.textContent=monthNames[calMonth]+' '+calYear;
 }
 
-// render both
-function renderAllCalendars(){ renderCalendar('admin'); renderCalendar('user'); }
+// NAV CALENDAR
+document.getElementById('userPrev').onclick=()=>{ calMonth--; if(calMonth<0){ calMonth=11; calYear--; } renderCalendar(); };
+document.getElementById('userNext').onclick=()=>{ calMonth++; if(calMonth>11){ calMonth=0; calYear++; } renderCalendar(); };
 
-// admin nav
-document.getElementById('adminPrev').addEventListener('click', ()=>{
-  const now = new Date();
-  const s = calState.admin;
-  const before = addMonths(s.month, s.year, -1);
-  if(before.year < now.getFullYear() || (before.year === now.getFullYear() && before.month < now.getMonth())) return;
-  calState.admin = before; renderCalendar('admin');
-});
-document.getElementById('adminNext').addEventListener('click', ()=>{ calState.admin = addMonths(calState.admin.month, calState.admin.year, 1); renderCalendar('admin'); });
-
-// user nav
-document.getElementById('userPrev').addEventListener('click', ()=>{
-  const now = new Date();
-  const s = calState.user;
-  const before = addMonths(s.month, s.year, -1);
-  if(before.year < now.getFullYear() || (before.year === now.getFullYear() && before.month < now.getMonth())) return;
-  calState.user = before; renderCalendar('user');
-});
-document.getElementById('userNext').addEventListener('click', ()=>{ calState.user = addMonths(calState.user.month, calState.user.year, 1); renderCalendar('user'); });
-
-/* ---------- Whoami & Show sections ---------- */
-function updateWhoami(){ const u = getLoggedUser(); document.getElementById('whoami').textContent = u ? `${u.username} (${u.role})` : ''; }
-
-function showSections(){
-  const u = getLoggedUser();
-  if(!u) return;
-  document.getElementById('loginSection').style.display = 'none';
-  document.getElementById('mainSection').style.display = 'block';
-  updateWhoami();
-  if(u.role === 'admin'){
-    document.getElementById('adminSection').style.display = 'block';
-    document.getElementById('userSection').style.display = 'none';
-    renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderAllCalendars();
-  } else {
-    document.getElementById('adminSection').style.display = 'none';
-    document.getElementById('userSection').style.display = 'block';
-    renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
-  }
-}
-
-/* ---------- Init ---------- */
-if(localStorage.getItem('loggedUser')) showSections();
-else { renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); renderAllCalendars(); }
-window.addEventListener('load', ()=>{ renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); updateWhoami(); renderAllCalendars(); });
 </script>
 </body>
 </html>
