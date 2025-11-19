@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Sistem Cuti Maxpriinting</title>
+<title>Sistem Cuti Maxprinting</title>
 <style>
 :root{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
 body{max-width:1100px;margin:24px auto;padding:20px;background:#f7fafc;color:#0f172a}
@@ -13,8 +13,10 @@ label{display:block;font-size:13px;margin-bottom:6px}
 input,select,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #e6edf3;font-size:14px;background:#fff}
 textarea{height:80px;resize:vertical}
 .actions{grid-column:1 / -1;display:flex;gap:8px;align-items:center}
-button{padding:9px 12px;border-radius:8px;border:0;background:#0ea5ad;color:white;cursor:pointer}
+button{padding:9px 12px;border-radius:8px;border:0;background:#0ea5ad;color:white;cursor:pointer;transition: background 0.2s;}
+button:hover{background:#0b8d94}
 button.ghost{background:transparent;border:1px solid #cbd5e1;color:#0f172a}
+button.ghost:hover{background:#f1f5f9}
 .table-wrap{overflow:auto;margin-top:12px}
 table{width:100%;border-collapse:separate;border-spacing:0 10px}
 thead th{background:transparent;padding:8px;text-align:left;font-size:13px;color:#334155}
@@ -48,6 +50,12 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
 .cal-legend{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:8px}
 .legend-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
 .legend-applied{background:#ffbed0}
+
+/* Branch List */
+.branch-list { list-style:none; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.branch-item { background:#f1f5f9; padding:6px 12px; border-radius:6px; display:flex; align-items:center; gap:8px; font-size:13px; border:1px solid #e2e8f0; }
+.branch-del { color:#ef4444; cursor:pointer; font-weight:bold; padding:0 4px; }
+.branch-del:hover { background:#fee2e2; border-radius:4px; }
 </style>
 
 <!-- jsPDF + AutoTable (for PDF export) -->
@@ -58,30 +66,44 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
 
 <!-- LOGIN -->
 <section class="card" id="loginSection">
-  <h2>Login</h2>
+  <h2 style="margin-top:0">Login Sistem Cuti</h2>
   <form id="loginForm">
-    <div><label>Username</label><input id="loginUsername" required></div>
-    <div><label>Password</label><input type="password" id="loginPassword" required></div>
+    <div><label>Username</label><input id="loginUsername" required placeholder="admin / user"></div>
+    <div><label>Password</label><input type="password" id="loginPassword" required placeholder="admin123"></div>
     <div class="actions">
       <button type="submit">Login</button>
     </div>
   </form>
+  <div style="margin-top:10px; font-size:12px; color:#64748b;">
+    Default Admin: <b>admin</b> / <b>admin123</b>
+  </div>
 </section>
 
 <!-- MAIN -->
 <section class="card" id="mainSection" style="display:none">
-  <header style="display:flex;align-items:center;gap:12px">
-    <h1 style="margin:0">Sistem Cuti</h1>
+  <header style="display:flex;align-items:center;gap:12px;border-bottom:1px solid #f1f5f9;padding-bottom:12px;margin-bottom:12px">
+    <h1 style="margin:0;font-size:20px">Sistem Cuti</h1>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-      <span id="whoami" style="font-size:14px;color:#334155"></span>
-      <button id="logoutBtn" class="ghost">Logout</button>
+      <span id="whoami" style="font-size:14px;color:#334155;font-weight:600"></span>
+      <button id="logoutBtn" class="ghost" style="padding:6px 12px">Logout</button>
     </div>
   </header>
 
   <!-- ADMIN -->
   <div id="adminSection" style="display:none;margin-top:12px">
-    <h3>Manajemen Akun</h3>
-    <form id="addUserForm" style="margin-bottom:12px">
+    
+    <!-- BRANCH MANAGEMENT -->
+    <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:20px;">
+        <h3 style="margin-top:0; font-size:16px;">Manajemen Cabang</h3>
+        <form id="addBranchForm" style="grid-template-columns: 1fr auto; align-items:end;">
+            <div><label>Nama Cabang Baru</label><input id="newBranchName" required placeholder="Contoh: Cabang Bekasi"></div>
+            <button type="submit" class="small-btn approve" style="height:38px;">+ Tambah</button>
+        </form>
+        <ul id="branchList" class="branch-list"></ul>
+    </div>
+
+    <h3 style="margin-top:0">Manajemen Akun User</h3>
+    <form id="addUserForm" style="margin-bottom:12px; background:#f8fafc; padding:12px; border-radius:8px;">
       <div><label>Username</label><input id="newUsername" required></div>
       <div><label>Password</label><input id="newPassword" required></div>
       <div><label>Email (opsional)</label><input id="newEmail"></div>
@@ -89,19 +111,27 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
         <label>Role</label>
         <select id="newRole"><option value="user">User</option><option value="admin">Admin</option></select>
       </div>
+      <!-- Branch Selection Dropdown -->
+      <div>
+        <label>Cabang</label>
+        <select id="newBranchSelect">
+            <!-- Populated by JS -->
+        </select>
+      </div>
+      
       <div class="actions"><button type="submit">Tambah User/Admin</button><button type="button" id="resetQuotaBtn" class="ghost">Reset Cuti Semua</button></div>
     </form>
 
     <div class="table-wrap">
       <table id="usersTable">
-        <thead><tr><th>Username</th><th>Email</th><th>Password</th><th>Role</th><th>Sisa Cuti</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Username</th><th>Cabang</th><th>Email</th><th>Role</th><th>Sisa Cuti</th><th>Aksi</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
 
-    <hr style="margin:12px 0">
+    <hr style="margin:20px 0; border:0; border-top:1px solid #e2e8f0">
 
-    <h3>Permintaan Cuti (Admin)</h3>
+    <h3 style="margin-top:0">Permintaan Cuti (Admin)</h3>
 
     <!-- CALENDAR ADMIN -->
     <div id="adminCalendar" class="calendar-wrap" aria-label="Kalender admin">
@@ -115,7 +145,7 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
     </div>
 
     <!-- FILTERS -->
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px; margin-top:16px; align-items:end">
       <div>
         <label>Status</label>
         <select id="filterStatus"><option value="all">Semua</option><option value="pending">Pending</option><option value="approved">Disetujui</option><option value="rejected">Ditolak</option></select>
@@ -123,6 +153,11 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
       <div>
         <label>User</label>
         <select id="filterUser"><option value="all">Semua</option></select>
+      </div>
+      <!-- FILTER CABANG -->
+      <div>
+        <label>Cabang</label>
+        <select id="filterBranch"><option value="all">Semua</option></select>
       </div>
       <div>
         <label>Tanggal (tepat)</label>
@@ -141,14 +176,14 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
         <label>Tahun</label>
         <select id="filterYear"><option value="all">Semua</option></select>
       </div>
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:end">
+      <div style="margin-left:auto;display:flex;gap:8px;">
         <button id="exportCSVBtn" class="ghost">Export CSV</button>
-        <button id="exportPDFBtn" class="ghost">Export PDF (Tabel)</button>
+        <button id="exportPDFBtn" class="ghost">Export PDF</button>
       </div>
     </div>
 
     <!-- DELETE BY DATE RANGE -->
-    <div style="display:flex;gap:8px;align-items:end;margin-bottom:12px">
+    <div style="display:flex;gap:8px;align-items:end;margin-bottom:12px; background:#fff1f2; padding:10px; border-radius:8px; border:1px solid #fecdd3">
       <div>
         <label>Hapus Cuti - Dari tanggal</label>
         <input type="date" id="deleteRangeStart">
@@ -157,15 +192,17 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
         <label>Sampai tanggal</label>
         <input type="date" id="deleteRangeEnd">
       </div>
-      <div style="align-self:flex-end">
-        <button id="btnDeleteRange" class="ghost">Hapus Cuti dalam Rentang</button>
+      <div>
+        <button id="btnDeleteRange" class="delete" style="background:#e11d48">Hapus Range</button>
       </div>
-      <div style="align-self:flex-end;color:#64748b;font-size:13px">(Hanya menghapus pengajuan, <strong>tidak menghapus user</strong>)</div>
+      <div style="flex:1; text-align:right; color:#881337; font-size:12px; align-self:center">
+        (Hanya menghapus pengajuan, <strong>tidak menghapus user</strong>)
+      </div>
     </div>
 
     <div class="table-wrap">
       <table id="adminLeaveTable">
-        <thead><tr><th>Username</th><th>Periode</th><th>Hari</th><th>Alasan</th><th>Status</th><th>Keterangan Admin</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Username</th><th>Cabang</th><th>Periode</th><th>Hari</th><th>Alasan</th><th>Status</th><th>Aksi</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -173,35 +210,34 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
 
   <!-- USER -->
   <div id="userSection" style="display:none;margin-top:12px">
-    <h3>Pengajuan Cuti</h3>
-    <form id="leaveForm" style="margin-bottom:12px">
-      <div><label>Tanggal Mulai</label><input type="date" id="leaveStart" required></div>
-      <div><label>Tanggal Selesai</label><input type="date" id="leaveEnd" required></div>
-      <div style="grid-column:1/-1"><label>Alasan</label><textarea id="leaveReason"></textarea></div>
-      <div class="actions"><button type="submit">Ajukan Cuti</button></div>
-    </form>
-
-    <p id="leaveQuotaDisplay"></p>
-
-    <!-- CALENDAR USER -->
-    <h3>Kalender Pengajuan Cuti (Anda)</h3>
-    <div id="userCalendar" class="calendar-wrap" aria-label="Kalender user">
-      <div class="cal-header">
-        <button class="cal-nav" id="userPrev">←</button>
-        <strong id="userCalTitle"></strong>
-        <button class="cal-nav" id="userNext">→</button>
-      </div>
-      <div id="userCalGrid" class="cal-grid"></div>
-      <div class="cal-legend"><span class="legend-dot legend-applied"></span> Tanda: Sudah ada pengajuan (pending/approved)</div>
+    <h3 style="margin-top:0">Pengajuan Cuti</h3>
+    
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+        <div>
+            <form id="leaveForm" style="margin-bottom:12px">
+              <div><label>Tanggal Mulai</label><input type="date" id="leaveStart" required></div>
+              <div><label>Tanggal Selesai</label><input type="date" id="leaveEnd" required></div>
+              <div style="grid-column:1/-1"><label>Alasan</label><textarea id="leaveReason" placeholder="Contoh: Acara keluarga, Sakit, dll..."></textarea></div>
+              <div class="actions"><button type="submit">Ajukan Cuti</button></div>
+            </form>
+            <div id="leaveQuotaDisplay" style="font-weight:bold; font-size:18px; color:#0ea5ad; margin-top:10px"></div>
+        </div>
+        
+        <div>
+            <!-- CALENDAR USER -->
+            <div id="userCalendar" class="calendar-wrap" aria-label="Kalender user" style="margin-top:0">
+              <div class="cal-header">
+                <button class="cal-nav" id="userPrev">←</button>
+                <strong id="userCalTitle"></strong>
+                <button class="cal-nav" id="userNext">→</button>
+              </div>
+              <div id="userCalGrid" class="cal-grid"></div>
+              <div class="cal-legend"><span class="legend-dot legend-applied"></span> Anda ada pengajuan di tanggal ini</div>
+            </div>
+        </div>
     </div>
 
-    <h3>Ganti Password</h3>
-    <form id="changePassForm" style="margin-bottom:12px">
-      <div><label>Password Lama</label><input type="password" id="oldPass" required></div>
-      <div><label>Password Baru</label><input type="password" id="newPass1" required></div>
-      <div><label>Ulangi Password Baru</label><input type="password" id="newPass2" required></div>
-      <div class="actions"><button type="submit">Perbarui Password</button></div>
-    </form>
+    <hr style="margin:20px 0; border:0; border-top:1px solid #e2e8f0">
 
     <h3>Riwayat Pengajuan</h3>
     <div class="table-wrap">
@@ -210,133 +246,57 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
         <tbody></tbody>
       </table>
     </div>
+    
+    <hr style="margin:20px 0; border:0; border-top:1px solid #e2e8f0">
+
+    <h3>Ganti Password</h3>
+    <form id="changePassForm" style="margin-bottom:12px; max-width:500px">
+      <div><label>Password Lama</label><input type="password" id="oldPass" required></div>
+      <div><label>Password Baru</label><input type="password" id="newPass1" required></div>
+      <div><label>Ulangi Password Baru</label><input type="password" id="newPass2" required></div>
+      <div class="actions"><button type="submit">Perbarui Password</button></div>
+    </form>
   </div>
 
 </section>
 
 <script>
-/* ================================
-   CONFIG: Google Apps Script Web App
-   ================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxmTRCmgkD62le8jINoe0eZS8x-TD11dsXry_YS2fE_JU66YhkpcklSZRZi7A2i5YEY/exec";
+/* ---------- Data init ---------- */
+// Load Branches
+let branches = JSON.parse(localStorage.getItem('branches') || '["Pusat", "Cabang A", "Cabang B"]');
+function saveBranches(){ localStorage.setItem('branches', JSON.stringify(branches)); }
 
-/* ---------- In-memory data (authoritative from sheet) ---------- */
-let users = [];
-let leaveRequests = [];
+// Load Users
+let users = JSON.parse(localStorage.getItem('users') || '[]');
+function saveUsers(){ localStorage.setItem('users', JSON.stringify(users)); }
+if(!Array.isArray(users) || users.length === 0){
+  users = [{ username: 'admin', password: 'admin123', email: 'admin@example.com', role: 'admin', quota: 12, branch: 'Pusat' }];
+  saveUsers();
+}
+let leaveRequests = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
+function saveLeaves(){ localStorage.setItem('leaveRequests', JSON.stringify(leaveRequests)); }
 
-/* ---------- Session (store only current user in sessionStorage) ---------- */
-function getLoggedUser(){
-  try {
-    return JSON.parse(sessionStorage.getItem('loggedUser'));
-  } catch(e){
-    return null;
-  }
-}
-function setLoggedUser(u){
-  if(u) sessionStorage.setItem('loggedUser', JSON.stringify(u));
-  else sessionStorage.removeItem('loggedUser');
-}
-
-/* ---------- Helpers: load/save via API ---------- */
-async function loadUsers(){
-  try {
-    const res = await fetch(API_URL + "?action=getUsers");
-    const data = await res.json();
-    // ensure quota numeric and fields exist
-    users = data.map(u => ({
-      username: (u.username||'').toString(),
-      password: (u.password||'').toString(),
-      email: (u.email||'').toString(),
-      role: (u.role||'user').toString(),
-      quota: Number(u.quota) || 12
-    }));
-  } catch (err) {
-    console.error('loadUsers error', err);
-    users = users || [];
-  }
-}
-async function loadLeaves(){
-  try {
-    const res = await fetch(API_URL + "?action=getLeaves");
-    const data = await res.json();
-    leaveRequests = data.map(r => ({
-      id: r.id || ('r_'+Date.now()),
-      username: r.username || '',
-      start: r.start || '',
-      end: r.end || '',
-      days: Number(r.days) || 0,
-      reason: r.reason || '-',
-      status: r.status || 'pending',
-      note: r.note || '-'
-    }));
-  } catch (err) {
-    console.error('loadLeaves error', err);
-    leaveRequests = leaveRequests || [];
-  }
-}
-
-async function saveUsers(){
-  try {
-    if(!users || users.length === 0){
-      // maintain header only
-      await fetch(API_URL, { method:'POST', body: JSON.stringify({ action:'saveUsers', data: [{ username:'username', password:'password', email:'email', role:'role', quota:12 }] })});
-      return;
-    }
-    // ensure consistent object keys order
-    const payload = users.map(u => ({ username:u.username, password:u.password, email:u.email||'', role:u.role||'user', quota: Number(u.quota)||0 }));
-    await fetch(API_URL, { method:'POST', body: JSON.stringify({ action:'saveUsers', data: payload })});
-  } catch (err) {
-    console.error('saveUsers error', err);
-    alert('Gagal menyimpan users ke Sheet: ' + err.message);
-  }
-}
-
-async function saveLeaves(){
-  try {
-    if(!leaveRequests || leaveRequests.length === 0){
-      await fetch(API_URL, { method:'POST', body: JSON.stringify({ action:'saveLeaves', data: [{ id:'id', username:'username', start:'start', end:'end', days:0, reason:'reason', status:'status', note:'note' }]})});
-      return;
-    }
-    const payload = leaveRequests.map(r => ({
-      id: r.id,
-      username: r.username,
-      start: r.start,
-      end: r.end,
-      days: Number(r.days)||0,
-      reason: r.reason || '-',
-      status: r.status || 'pending',
-      note: r.note || '-'
-    }));
-    await fetch(API_URL, { method:'POST', body: JSON.stringify({ action:'saveLeaves', data: payload })});
-  } catch (err) {
-    console.error('saveLeaves error', err);
-    alert('Gagal menyimpan pengajuan ke Sheet: ' + err.message);
-  }
-}
-
-/* ---------- Utility ---------- */
 function daysBetween(a,b){ return Math.floor((new Date(b) - new Date(a))/(1000*60*60*24)) + 1; }
+function getLoggedUser(){ try { return JSON.parse(localStorage.getItem('loggedUser')); } catch(e){ return null; } }
 
-/* ---------- Utility: adjust user quota safely (async) ---------- */
-async function adjustUserQuota(username, delta){
+/* ---------- Utility: adjust user quota safely ---------- */
+function adjustUserQuota(username, delta){
   const u = users.find(x => x.username === username);
   if(!u) return;
   u.quota = Math.max(0, (parseInt(u.quota) || 0) + parseInt(delta));
-  await saveUsers();
-  // sync session if same user logged in
+  saveUsers();
   const logged = getLoggedUser();
   if(logged && logged.username === username){
-    setLoggedUser(Object.assign({}, u));
+    const updated = Object.assign({}, u);
+    localStorage.setItem('loggedUser', JSON.stringify(updated));
   }
-  renderUsers();
 }
 
-/* ---------- Helpers: sync session when username changes ---------- */
 function syncLoggedUserIfMatches(maybeUsername, newUserObj){
   const logged = getLoggedUser();
   if(!logged) return;
   if(logged.username === maybeUsername || (newUserObj && logged.username === newUserObj.username)){
-    setLoggedUser(newUserObj);
+    localStorage.setItem('loggedUser', JSON.stringify(newUserObj));
   }
 }
 
@@ -345,6 +305,7 @@ const calState = {
   admin: { month: new Date().getMonth(), year: new Date().getFullYear() },
   user:  { month: new Date().getMonth(), year: new Date().getFullYear() }
 };
+
 function addMonths(month, year, delta){
   month += delta;
   while(month<0){ month += 12; year -= 1; }
@@ -352,15 +313,8 @@ function addMonths(month, year, delta){
   return { month, year };
 }
 
-/* ---------- Render calendar (generic for 'admin' and 'user') ---------- */
 function renderCalendar(who){
   const state = calState[who];
-  const now = new Date();
-  if(state.year < now.getFullYear() || (state.year === now.getFullYear() && state.month < now.getMonth())){
-    state.year = now.getFullYear();
-    state.month = now.getMonth();
-  }
-
   const grid = document.getElementById(who + 'CalGrid');
   const title = document.getElementById(who + 'CalTitle');
   if(!grid || !title) return;
@@ -379,8 +333,9 @@ function renderCalendar(who){
 
   const first = new Date(state.year, state.month, 1);
   const last = new Date(state.year, state.month + 1, 0);
-  const startDay = first.getDay();
-  const max = (startDay === 0) ? 6 : (startDay - 1);
+  const startDay = first.getDay(); // 0 = Sun ... 6 = Sat
+  const jsDayToMonStart = (d) => (d === 0 ? 6 : d - 1);
+  const max = jsDayToMonStart(startDay);
 
   for(let i=0;i<max;i++){
     const div = document.createElement('div');
@@ -391,6 +346,7 @@ function renderCalendar(who){
   const marked = new Set();
   leaveRequests.forEach(r=>{
     if(r.status === 'rejected') return;
+    if(who === 'user' && r.username !== getLoggedUser()?.username) return;
     let s = new Date(r.start), e = new Date(r.end);
     if(isNaN(s) || isNaN(e)) return;
     let cur = new Date(s);
@@ -412,12 +368,66 @@ function renderCalendar(who){
     }
     if(marked.has(d)){
       div.classList.add('cal-marked');
-      div.title = 'Sudah ada pengajuan pada tanggal ini';
+      div.title = 'Ada pengajuan';
     }
     grid.appendChild(div);
   }
 }
+
+document.getElementById('adminPrev').onclick = () => { const r = addMonths(calState.admin.month, calState.admin.year, -1); calState.admin = r; renderCalendar('admin'); };
+document.getElementById('adminNext').onclick = () => { const r = addMonths(calState.admin.month, calState.admin.year, 1); calState.admin = r; renderCalendar('admin'); };
+document.getElementById('userPrev').onclick = () => { const r = addMonths(calState.user.month, calState.user.year, -1); calState.user = r; renderCalendar('user'); };
+document.getElementById('userNext').onclick = () => { const r = addMonths(calState.user.month, calState.user.year, 1); calState.user = r; renderCalendar('user'); };
+
 function renderAllCalendars(){ renderCalendar('admin'); renderCalendar('user'); }
+
+/* ---------- BRANCH MANAGEMENT ---------- */
+function renderBranches(){
+    const list = document.getElementById('branchList');
+    const select = document.getElementById('newBranchSelect');
+    if(!list || !select) return;
+
+    list.innerHTML = '';
+    select.innerHTML = '';
+
+    branches.forEach((b, idx) => {
+        // List Item (Admin Management)
+        const li = document.createElement('li');
+        li.className = 'branch-item';
+        li.innerHTML = `<span>${b}</span>`;
+        
+        const delSpan = document.createElement('span');
+        delSpan.className = 'branch-del';
+        delSpan.innerHTML = '&times;';
+        delSpan.title = 'Hapus Cabang';
+        delSpan.onclick = () => {
+             if(!confirm(`Hapus cabang "${b}"? User di cabang ini tidak akan terhapus, namun status cabangnya akan tetap tertulis "${b}".`)) return;
+             branches.splice(idx, 1);
+             saveBranches();
+             renderBranches();
+        };
+        li.appendChild(delSpan);
+        list.appendChild(li);
+
+        // Dropdown Option (Add User Form)
+        const opt = document.createElement('option');
+        opt.value = b;
+        opt.textContent = b;
+        select.appendChild(opt);
+    });
+}
+
+document.getElementById('addBranchForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = document.getElementById('newBranchName');
+    const name = input.value.trim();
+    if(!name) return;
+    if(branches.includes(name)){ alert('Cabang sudah ada'); return; }
+    branches.push(name);
+    saveBranches();
+    input.value = '';
+    renderBranches();
+});
 
 /* ---------- Render users (admin table) ---------- */
 function renderUsers(){
@@ -426,16 +436,25 @@ function renderUsers(){
   tbody.innerHTML = '';
   users.forEach((u, idx) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${u.username}</td><td>${u.email || '-'}</td><td>*****</td><td>${u.role}</td><td>${u.quota}</td><td></td>`;
+    // Added Branch Column
+    tr.innerHTML = `<td>${u.username}</td><td>${u.branch || '-'}</td><td>${u.email || '-'}</td><td>${u.role}</td><td>${u.quota}</td><td></td>`;
     const actionsTd = tr.querySelector('td:last-child');
 
     const editBtn = document.createElement('button'); editBtn.className='small-btn edit'; editBtn.textContent='Edit';
-    editBtn.onclick = async () => {
+    editBtn.onclick = () => {
       const oldName = u.username;
       const newUser = prompt('Username:', u.username);
+      if(newUser === null) return; 
+      
+      // Edit details including Branch
       const newEmail = prompt('Email (opsional):', u.email || '');
       const newPwd = prompt('Password (kosong = tetap):', '');
       const newRole = prompt('Role (user/admin):', u.role);
+      const currentBranch = u.branch || branches[0] || 'Pusat';
+      
+      // Simple prompt for branch (advanced: could use a custom modal, but prompt is consistent with existing UI)
+      let branchListString = branches.join(', ');
+      const newBranch = prompt(`Cabang (${branchListString}):`, currentBranch);
       const newQuota = prompt('Sisa Cuti (angka):', u.quota);
 
       if(newUser && newUser !== u.username){
@@ -445,32 +464,30 @@ function renderUsers(){
       u.email = (newEmail !== null) ? newEmail : u.email;
       if(newPwd) u.password = newPwd;
       if(newRole) u.role = newRole;
+      if(newBranch) u.branch = newBranch;
       if(!isNaN(parseInt(newQuota))) u.quota = parseInt(newQuota);
-
-      await saveUsers();
+      saveUsers();
 
       if(newUser && oldName !== newUser){
         leaveRequests.forEach(r => { if(r.username === oldName) r.username = newUser; });
-        await saveLeaves();
+        saveLeaves();
       }
 
       renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderAllCalendars();
       alert('Perubahan disimpan');
-
       syncLoggedUserIfMatches(oldName, u);
       updateWhoami();
     };
 
     const delBtn = document.createElement('button'); delBtn.className='small-btn delete'; delBtn.textContent='Hapus';
-    delBtn.onclick = async () => {
-      if(!confirm(`Hapus user "${u.username}"? (pengajuan cuti TIDAK akan dihapus)`)) return;
+    delBtn.onclick = () => {
+      if(!confirm(`Hapus user "${u.username}"?`)) return;
       const logged = getLoggedUser();
       const removedUsername = u.username;
       users.splice(idx,1);
-      await saveUsers();
+      saveUsers();
       if(logged && logged.username === removedUsername){
-        setLoggedUser(null);
-        alert('Anda (user yang dihapus) akan dikeluarkan dari sesi.');
+        localStorage.removeItem('loggedUser');
         location.reload();
         return;
       }
@@ -482,86 +499,117 @@ function renderUsers(){
   });
 }
 
-/* ---------- Admin leaves (with filters, newest first) ---------- */
+/* ---------- Admin leaves (with filters) ---------- */
+// FUNGSI BARU: Mengambil data cuti yang sudah difilter (dipakai Tabel, CSV, dan PDF)
+function getFilteredLeaves() {
+  const statusFilter = document.getElementById('filterStatus')?.value || 'all';
+  const userFilter = document.getElementById('filterUser')?.value || 'all';
+  const branchFilter = document.getElementById('filterBranch')?.value || 'all'; // Baru
+  const dateFilter = document.getElementById('filterDate')?.value || '';
+  const monthFilter = document.getElementById('filterMonth')?.value || 'all';
+  const yearFilter = document.getElementById('filterYear')?.value || 'all';
+
+  return leaveRequests.filter(r => {
+    const start = new Date(r.start);
+    if(isNaN(start)) return false;
+
+    // 1. Filter Status
+    if(statusFilter !== 'all' && r.status !== statusFilter) return false;
+    
+    // 2. Filter User
+    if(userFilter !== 'all' && r.username !== userFilter) return false;
+
+    // 3. Filter Cabang (BARU)
+    if(branchFilter !== 'all') {
+        const u = users.find(u => u.username === r.username);
+        const uBranch = u ? (u.branch || '-') : '-';
+        // Gunakan loose equality atau exact match string
+        if(uBranch !== branchFilter) return false;
+    }
+
+    // 4. Filter Tanggal Spesifik
+    if(dateFilter){ 
+        const d = new Date(dateFilter); 
+        if(!(d >= new Date(r.start) && d <= new Date(r.end))) return false; 
+    }
+
+    // 5. Filter Bulan
+    if(monthFilter !== 'all'){ 
+        if((start.getMonth()+1).toString() !== monthFilter) return false; 
+    }
+
+    // 6. Filter Tahun
+    if(yearFilter !== 'all'){ 
+        if(start.getFullYear().toString() !== yearFilter) return false; 
+    }
+
+    return true;
+  }).sort((a,b)=>{
+    // Sort: ID descending (terbaru input), fallback ke tanggal
+    if(a.id && b.id) return (b.id > a.id) ? 1 : -1;
+    return new Date(b.start) - new Date(a.start);
+  });
+}
+
 function renderAdminLeavesFiltered(){
-  const statusFilterEl = document.getElementById('filterStatus');
-  const userFilterEl = document.getElementById('filterUser');
-  const dateFilterEl = document.getElementById('filterDate');
-  const monthFilterEl = document.getElementById('filterMonth');
-  const yearFilterEl = document.getElementById('filterYear');
-
-  const statusFilter = statusFilterEl ? statusFilterEl.value || 'all' : 'all';
-  const userFilter = userFilterEl ? userFilterEl.value || 'all' : 'all';
-  const dateFilter = dateFilterEl ? dateFilterEl.value || '' : '';
-  const monthFilter = monthFilterEl ? monthFilterEl.value || 'all' : 'all';
-  const yearFilter = yearFilterEl ? yearFilterEl.value || 'all' : 'all';
-
   const tbody = document.querySelector('#adminLeaveTable tbody');
   if(!tbody) return;
   tbody.innerHTML = '';
 
-  const leavesSorted = [...leaveRequests].sort((a,b)=>{
-    if(a.id && b.id) return (b.id > a.id) ? 1 : -1;
-    return new Date(b.start) - new Date(a.start);
-  });
+  // Panggil fungsi filter utama
+  const leavesSorted = getFilteredLeaves();
+
+  if(leavesSorted.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#64748b;">Tidak ada data yang cocok dengan filter.</td></tr>';
+      return;
+  }
 
   leavesSorted.forEach((r) => {
-    const start = new Date(r.start);
-    if(isNaN(start)) return;
-    if(statusFilter !== 'all' && r.status !== statusFilter) return;
-    if(userFilter !== 'all' && r.username !== userFilter) return;
-    if(dateFilter){ const d = new Date(dateFilter); if(!(d >= new Date(r.start) && d <= new Date(r.end))) return; }
-    if(monthFilter !== 'all'){ if((start.getMonth()+1).toString() !== monthFilter) return; }
-    if(yearFilter !== 'all'){ if(start.getFullYear().toString() !== yearFilter) return; }
+    // Get User Branch for Table
+    const uObj = users.find(u => u.username === r.username);
+    const uBranch = uObj ? (uObj.branch || '-') : '-';
 
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.username}</td><td>${r.start} → ${r.end}</td><td>${r.days}</td><td>${(r.reason||'-')}</td><td><span class="status ${r.status}">${r.status}</span></td><td>${(r.note||'-')}</td><td></td>`;
+    tr.innerHTML = `<td>${r.username}</td><td>${uBranch}</td><td>${r.start} → ${r.end}</td><td>${r.days}</td><td>${(r.reason||'-')}</td><td><span class="status ${r.status}">${r.status}</span></td><td></td>`;
     const actionsTd = tr.querySelector('td:last-child');
 
-    const aBtn = document.createElement('button'); aBtn.className='small-btn approve'; aBtn.textContent='Setujui';
-    aBtn.onclick = async () => {
+    const aBtn = document.createElement('button'); aBtn.className='small-btn approve'; aBtn.textContent='✓'; aBtn.title="Setujui";
+    aBtn.onclick = () => {
       if(!confirm('Setujui pengajuan ini?')) return;
       const note = prompt('Keterangan persetujuan (opsional):','Disetujui') || 'Disetujui';
-      if(r.status !== 'approved'){
-        await adjustUserQuota(r.username, -r.days);
-      }
+      if(r.status !== 'approved'){ adjustUserQuota(r.username, -r.days); }
       r.status = 'approved'; r.note = note;
-      await saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
+      saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
     };
 
-    const rBtn = document.createElement('button'); rBtn.className='small-btn reject'; rBtn.textContent='Tolak';
-    rBtn.onclick = async () => {
+    const rBtn = document.createElement('button'); rBtn.className='small-btn reject'; rBtn.textContent='✗'; rBtn.title="Tolak";
+    rBtn.onclick = () => {
       if(!confirm('Tolak pengajuan ini?')) return;
       const note = prompt('Alasan penolakan (opsional):','Ditolak') || 'Ditolak';
-      if(r.status === 'approved'){
-        await adjustUserQuota(r.username, +r.days);
-      }
+      if(r.status === 'approved'){ adjustUserQuota(r.username, +r.days); }
       r.status = 'rejected'; r.note = note;
-      await saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
+      saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
     };
 
-    const dBtn = document.createElement('button'); dBtn.className='small-btn delete'; dBtn.textContent='Hapus';
-    dBtn.onclick = async () => {
+    const dBtn = document.createElement('button'); dBtn.className='small-btn delete'; dBtn.textContent='🗑'; dBtn.title="Hapus";
+    dBtn.onclick = () => {
       if(!confirm('Hapus pengajuan ini?')) return;
-      if(r.status === 'approved'){
-        await adjustUserQuota(r.username, +r.days);
-      }
-      const realIndex = leaveRequests.findIndex(x => x.id === r.id && x.username === r.username && x.start === r.start && x.end === r.end);
-      if(realIndex > -1){ leaveRequests.splice(realIndex,1); await saveLeaves(); }
+      if(r.status === 'approved'){ adjustUserQuota(r.username, +r.days); }
+      const realIndex = leaveRequests.findIndex(x => x.id === r.id);
+      if(realIndex > -1){ leaveRequests.splice(realIndex,1); saveLeaves(); }
       renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions(); renderAllCalendars();
     };
 
-    actionsTd.appendChild(aBtn); actionsTd.appendChild(document.createTextNode(' '));
-    actionsTd.appendChild(rBtn); actionsTd.appendChild(document.createTextNode(' '));
+    actionsTd.appendChild(aBtn); 
+    actionsTd.appendChild(rBtn); 
     actionsTd.appendChild(dBtn);
 
     tbody.appendChild(tr);
   });
-
   renderCalendar('admin');
 }
 
-/* ---------- User side: render history & quota ---------- */
+/* ---------- User side (RESTORED) ---------- */
 function renderUserLeaves(){
   const tbody = document.querySelector('#leaveTable tbody'); if(!tbody) return;
   const u = getLoggedUser(); if(!u) return;
@@ -583,47 +631,90 @@ function updateQuotaDisplay(){
   const u = getLoggedUser(); if(!u) return;
   const stored = users.find(x => x.username === u.username);
   const storedQuota = stored ? (parseInt(stored.quota) || 0) : (u.quota || 0);
-  if(stored){
-    setLoggedUser(stored);
-  }
+  const storedBranch = stored ? (stored.branch || '-') : '-';
+  
+  if(stored){ localStorage.setItem('loggedUser', JSON.stringify(stored)); }
   const quotaEl = document.getElementById('leaveQuotaDisplay');
-  if(quotaEl) quotaEl.textContent = `Sisa Cuti: ${storedQuota}`;
+  if(quotaEl) quotaEl.innerHTML = `Sisa Cuti: ${storedQuota} Hari <br><span style="font-size:14px;color:#64748b;font-weight:normal">Cabang: ${storedBranch}</span>`;
   renderUsers();
 }
 
-/* ---------- Login / Logout (use users[] from sheet) ---------- */
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
+/* ---------- Login / Logout / UI Control (RESTORED) ---------- */
+function showSections(){
+  const u = getLoggedUser();
+  const loginSec = document.getElementById('loginSection');
+  const mainSec = document.getElementById('mainSection');
+  const adminSec = document.getElementById('adminSection');
+  const userSec = document.getElementById('userSection');
+  const whoami = document.getElementById('whoami');
+
+  if(!u){
+    loginSec.style.display = 'block';
+    mainSec.style.display = 'none';
+  } else {
+    loginSec.style.display = 'none';
+    mainSec.style.display = 'block';
+    whoami.textContent = `Halo, ${u.username} (${u.role})`;
+    if(u.role === 'admin'){
+      adminSec.style.display = 'block';
+      userSec.style.display = 'none';
+      renderBranches(); // Init branches
+      renderUsers(); renderAdminLeavesFiltered();
+    } else {
+      adminSec.style.display = 'none';
+      userSec.style.display = 'block';
+      renderUserLeaves();
+    }
+    populateFilterOptions();
+    renderAllCalendars();
+  }
+}
+function updateWhoami(){ showSections(); }
+
+document.getElementById('loginForm').addEventListener('submit', e => {
   e.preventDefault();
   const uname = document.getElementById('loginUsername').value.trim();
   const pwd = document.getElementById('loginPassword').value.trim();
   const user = users.find(x => x.username === uname && x.password === pwd);
   if(!user){ alert('Login gagal — periksa username & password'); return; }
-  // store session copy
-  setLoggedUser(user);
+  localStorage.setItem('loggedUser', JSON.stringify(user));
   showSections();
+  e.target.reset();
 });
 
 document.getElementById('logoutBtn').addEventListener('click', ()=> {
-  setLoggedUser(null); location.reload();
+  localStorage.removeItem('loggedUser'); location.reload();
 });
 
-/* ---------- Admin: add user ---------- */
-document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+document.addEventListener('DOMContentLoaded', showSections);
+
+/* ---------- Admin features (RESTORED) ---------- */
+document.getElementById('addUserForm').addEventListener('submit', e => {
   e.preventDefault();
   const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newPassword').value.trim();
   const email = document.getElementById('newEmail').value.trim();
   const role = document.getElementById('newRole').value;
+  const branch = document.getElementById('newBranchSelect').value; // Get branch
+
   if(!username || !password){ alert('Username & password wajib diisi'); return; }
   if(users.find(u => u.username === username)){ alert('Username sudah ada'); return; }
-  users.push({ username, password, email: email||'', role, quota: 12 });
-  await saveUsers(); renderUsers(); populateFilterOptions(); renderAllCalendars();
+  
+  users.push({ username, password, email: email||'', role, quota: 12, branch: branch });
+  saveUsers(); renderUsers(); populateFilterOptions();
   alert('User ditambahkan');
   e.target.reset();
+  if(document.getElementById('newBranchSelect').options.length > 0) document.getElementById('newBranchSelect').selectedIndex = 0;
 });
 
-/* ---------- Leave submit with overlap warning ---------- */
-document.getElementById('leaveForm').addEventListener('submit', async (e) => {
+document.getElementById('resetQuotaBtn').addEventListener('click', ()=> {
+  if(!confirm('Set sisa cuti semua user ke 12 hari?')) return;
+  users.forEach(u => u.quota = 12); saveUsers(); renderUsers();
+  alert('Sisa cuti diperbaharui');
+});
+
+/* ---------- User Leave Submit (RESTORED) ---------- */
+document.getElementById('leaveForm').addEventListener('submit', e => {
   e.preventDefault();
   const u = getLoggedUser(); if(!u){ alert('Login terlebih dahulu'); return; }
   const s = document.getElementById('leaveStart').value;
@@ -633,11 +724,8 @@ document.getElementById('leaveForm').addEventListener('submit', async (e) => {
   const days = daysBetween(s,eDate);
   const reason = document.getElementById('leaveReason').value || '-';
 
-  function overlaps(aStart,aEnd,bStart,bEnd){
-    return (aStart <= bEnd) && (bStart <= aEnd);
-  }
-  const start = new Date(s);
-  const end = new Date(eDate);
+  function overlaps(aStart,aEnd,bStart,bEnd){ return (aStart <= bEnd) && (bStart <= aEnd); }
+  const start = new Date(s); const end = new Date(eDate);
   const overlapsList = leaveRequests.filter(r => {
     if(r.username === u.username) return false;
     const rs = new Date(r.start), re = new Date(r.end);
@@ -652,13 +740,12 @@ document.getElementById('leaveForm').addEventListener('submit', async (e) => {
 
   const record = { id: 'r_'+Date.now(), username: u.username, start: s, end: eDate, days, reason, status: 'pending', note: '-' };
   leaveRequests.push(record);
-  await saveLeaves(); renderUserLeaves(); renderAdminLeavesFiltered(); populateFilterOptions(); renderAllCalendars();
+  saveLeaves(); renderUserLeaves();
   alert('Pengajuan terkirim');
   e.target.reset();
 });
 
-/* ---------- User: change password ---------- */
-document.getElementById('changePassForm').addEventListener('submit', async (e) => {
+document.getElementById('changePassForm').addEventListener('submit', e => {
   e.preventDefault();
   const u = getLoggedUser(); if(!u) return alert('Login terlebih dahulu');
   const old = document.getElementById('oldPass').value;
@@ -669,110 +756,82 @@ document.getElementById('changePassForm').addEventListener('submit', async (e) =
   if(old !== usr.password) return alert('Password lama salah');
   if(n1 !== n2) return alert('Password baru tidak sama');
   if(n1.length < 4) return alert('Minimal 4 karakter');
-  usr.password = n1; await saveUsers(); setLoggedUser(usr);
+  usr.password = n1; saveUsers(); localStorage.setItem('loggedUser', JSON.stringify(usr));
   alert('Password berhasil diperbarui'); e.target.reset();
 });
 
-/* ---------- Reset quota (admin) ---------- */
-document.getElementById('resetQuotaBtn').addEventListener('click', async ()=> {
-  if(!confirm('Set sisa cuti semua user ke 12 hari?')) return;
-  users.forEach(u => u.quota = 12); await saveUsers(); renderUsers(); renderUserLeaves(); renderAllCalendars();
-  alert('Sisa cuti diperbaharui');
-});
-
-/* ---------- Export CSV (safe quoting) ---------- */
+/* ---------- Exports (Updated to use Filtered Data) ---------- */
 document.getElementById('exportCSVBtn').addEventListener('click', ()=> {
-  const leavesSorted = [...leaveRequests].sort((a,b)=> (b.id && a.id) ? ((b.id>a.id)?1:-1) : (new Date(b.start)-new Date(a.start)));
-  let csv = `"Username","Periode","Hari","Alasan","Status","Keterangan Admin"\n`;
+  const leavesSorted = getFilteredLeaves(); 
+  let csv = `"Username","Cabang","Periode","Hari","Alasan","Status","Keterangan Admin"\n`;
   leavesSorted.forEach(r => {
+    const uObj = users.find(u => u.username === r.username);
+    const b = uObj ? (uObj.branch || '-') : '-';
     const safe = txt => `"${(txt||'').toString().replace(/"/g,'""')}"`;
-    csv += `${safe(r.username)},${safe(r.start + ' → ' + r.end)},${safe(r.days)},${safe(r.reason||'-')},${safe(r.status)},${safe(r.note||'-')}\n`;
+    csv += `${safe(r.username)},${safe(b)},${safe(r.start + ' → ' + r.end)},${safe(r.days)},${safe(r.reason||'-')},${safe(r.status)},${safe(r.note||'-')}\n`;
   });
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'permintaan_cuti.csv'; a.click();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'laporan_cuti_filtered.csv'; a.click();
 });
 
-/* ---------- Export PDF (tabel rapi) ---------- */
 document.getElementById('exportPDFBtn').addEventListener('click', ()=> {
   try {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF("p","pt","a4");
-
     doc.setFontSize(14);
-    doc.text("Laporan Permintaan Cuti", 40, 40);
-
+    doc.text("Laporan Permintaan Cuti (Terfilter)", 40, 40);
     const printedAt = new Date().toLocaleString("id-ID");
-
-    const leavesSorted = [...leaveRequests].sort((a,b)=> 
-      (b.id && a.id) ? ((b.id > a.id) ? 1 : -1) : (new Date(b.start) - new Date(a.start))
-    );
-
-    const body = leavesSorted.map(r => [
-      r.username,
-      `${r.start} → ${r.end}`,
-      r.days.toString(),
-      r.reason || '-',
-      r.status,
-      r.note || '-'
-    ]);
-
+    const leavesSorted = getFilteredLeaves();
+    const body = leavesSorted.map(r => {
+      const uObj = users.find(u => u.username === r.username);
+      const b = uObj ? (uObj.branch || '-') : '-';
+      return [r.username, b, `${r.start} -> ${r.end}`, r.days.toString(), r.status, r.note || '-'];
+    });
     doc.autoTable({
-      head: [['Username','Periode','Hari','Alasan','Status','Keterangan Admin']],
-      body,
-      startY: 64,
-      tableWidth: 'auto',
-      styles: { overflow: 'linebreak', fontSize: 10, cellPadding: 5 },
-      pageBreak: 'auto',
-      columnStyles: {
-        0: { cellWidth: 70 },
-        1: { cellWidth: 90 },
-        2: { cellWidth: 30, halign: 'center' },
-        3: { cellWidth: 120 },
-        4: { cellWidth: 60, halign: 'center' },
-        5: { cellWidth: 100 }
-      },
-      margin: { left: 30, right: 30 },
+      head: [['Username','Cabang','Periode','Hari','Status','Ket.']],
+      body, startY: 64,
+      styles: { overflow: 'linebreak', fontSize: 9, cellPadding: 4 },
+      columnStyles: { 0: {cellWidth:60}, 1: {cellWidth:60} },
       didDrawPage: (data) => {
-        const pageCount = doc.getNumberOfPages();
-        const pageSize = doc.internal.pageSize;
-
         doc.setFontSize(9);
-        doc.text(
-          `Halaman ${data.pageNumber} dari ${pageCount}`,
-          pageSize.width - 30,
-          pageSize.height - 20,
-          { align: 'right' }
-        );
-        doc.text(
-          `Dicetak pada: ${printedAt}`,
-          30,
-          pageSize.height - 20
-        );
+        doc.text(`Dicetak: ${printedAt} | Data: ${leavesSorted.length} baris`, 40, doc.internal.pageSize.height - 20);
       }
     });
-
-    doc.save('permintaan_cuti_tabel.pdf');
-
-  } catch (err) {
-    alert('Gagal menghasilkan PDF: ' + (err.message || err));
-  }
+    doc.save('laporan_cuti_filtered.pdf');
+  } catch (err) { alert('Gagal PDF: ' + (err.message || err)); }
 });
 
-/* ---------- Populate filters ---------- */
 function populateFilterOptions(){
   const userSelect = document.getElementById('filterUser');
-  if(!userSelect) return;
-  userSelect.innerHTML = '<option value="all">Semua</option>';
-  users.forEach(u => { const opt = document.createElement('option'); opt.value = u.username; opt.textContent = u.username; userSelect.appendChild(opt); });
+  const branchSelect = document.getElementById('filterBranch');
+  
+  if(!userSelect || !branchSelect) return;
+
+  userSelect.innerHTML = '<option value="all">Semua User</option>';
+  users.forEach(u => { 
+      const opt = document.createElement('option'); 
+      opt.value = u.username; 
+      opt.textContent = u.username; 
+      userSelect.appendChild(opt); 
+  });
+
+  branchSelect.innerHTML = '<option value="all">Semua Cabang</option>';
+  branches.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      branchSelect.appendChild(opt);
+  });
 
   const yearSelect = document.getElementById('filterYear');
-  if(!yearSelect) return;
-  yearSelect.innerHTML = '<option value="all">Semua</option>';
-  const years = new Set();
-  leaveRequests.forEach(r => { const y = new Date(r.start).getFullYear(); if(!isNaN(y)) years.add(y); });
-  Array.from(years).sort().forEach(y => { const opt = document.createElement('option'); opt.value = y; opt.textContent = y; yearSelect.appendChild(opt); });
+  if(yearSelect) {
+      yearSelect.innerHTML = '<option value="all">Semua Tahun</option>';
+      const years = new Set();
+      leaveRequests.forEach(r => { const y = new Date(r.start).getFullYear(); if(!isNaN(y)) years.add(y); });
+      Array.from(years).sort().forEach(y => { const opt = document.createElement('option'); opt.value = y; opt.textContent = y; yearSelect.appendChild(opt); });
+  }
 
-  ['filterStatus','filterUser','filterDate','filterMonth','filterYear'].forEach(id => {
+  ['filterStatus','filterUser','filterBranch','filterDate','filterMonth','filterYear'].forEach(id => {
     const el = document.getElementById(id);
     if(!el) return;
     const newEl = el.cloneNode(true);
@@ -781,9 +840,9 @@ function populateFilterOptions(){
   });
 }
 
-/* ---------- DELETE BY DATE RANGE ---------- */
 function rangesOverlap(aStart, aEnd, bStart, bEnd){ return (aStart <= bEnd) && (bStart <= aEnd); }
-document.getElementById('btnDeleteRange').addEventListener('click', async ()=> {
+
+document.getElementById('btnDeleteRange').addEventListener('click', ()=> {
   const s = document.getElementById('deleteRangeStart').value;
   const e = document.getElementById('deleteRangeEnd').value;
   if(!s || !e){ alert('Isi kedua tanggal (awal & akhir) untuk penghapusan.'); return; }
@@ -795,78 +854,19 @@ document.getElementById('btnDeleteRange').addEventListener('click', async ()=> {
     if(isNaN(rs) || isNaN(re)) return false;
     return rangesOverlap(start, end, rs, re);
   });
+
   if(toDelete.length === 0){ alert('Tidak ada pengajuan cuti dalam rentang tanggal tersebut.'); return; }
   if(!confirm(`Akan menghapus ${toDelete.length} pengajuan cuti yang overlap rentang ${s} → ${e}.\nLanjutkan?`)) return;
 
-  for(const r of toDelete){ if(r.status === 'approved'){ await adjustUserQuota(r.username, +r.days); } }
-  leaveRequests = leaveRequests.filter(r => {
-    const rs = new Date(r.start); const re = new Date(r.end);
-    if(isNaN(rs) || isNaN(re)) return true;
-    return !rangesOverlap(start, end, rs, re);
+  toDelete.forEach(r => {
+      if(r.status === 'approved'){ adjustUserQuota(r.username, r.days); }
+      const idx = leaveRequests.indexOf(r);
+      if(idx > -1) leaveRequests.splice(idx, 1);
   });
-  await saveLeaves(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); renderAllCalendars();
-  alert(`${toDelete.length} pengajuan cuti berhasil dihapus.`);
+
+  saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions(); renderAllCalendars();
+  alert('Pengajuan dalam rentang tanggal tersebut berhasil dihapus.');
 });
-
-/* ---------- Calendar navigation handlers ---------- */
-// admin nav
-document.getElementById('adminPrev').addEventListener('click', ()=>{
-  const now = new Date();
-  const s = calState.admin;
-  const before = addMonths(s.month, s.year, -1);
-  if(before.year < now.getFullYear() || (before.year === now.getFullYear() && before.month < now.getMonth())) return;
-  calState.admin = before; renderCalendar('admin');
-});
-document.getElementById('adminNext').addEventListener('click', ()=>{ calState.admin = addMonths(calState.admin.month, calState.admin.year, 1); renderCalendar('admin'); });
-
-// user nav
-document.getElementById('userPrev').addEventListener('click', ()=>{
-  const now = new Date();
-  const s = calState.user;
-  const before = addMonths(s.month, s.year, -1);
-  if(before.year < now.getFullYear() || (before.year === now.getFullYear() && before.month < now.getMonth())) return;
-  calState.user = before; renderCalendar('user');
-});
-document.getElementById('userNext').addEventListener('click', ()=>{ calState.user = addMonths(calState.user.month, calState.user.year, 1); renderCalendar('user'); });
-
-/* ---------- Whoami & Show sections ---------- */
-function updateWhoami(){ const u = getLoggedUser(); document.getElementById('whoami').textContent = u ? `${u.username} (${u.role})` : ''; }
-
-function showSections(){
-  const u = getLoggedUser();
-  if(!u) return;
-  document.getElementById('loginSection').style.display = 'none';
-  document.getElementById('mainSection').style.display = 'block';
-  updateWhoami();
-  if(u.role === 'admin'){
-    document.getElementById('adminSection').style.display = 'block';
-    document.getElementById('userSection').style.display = 'none';
-    renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderAllCalendars();
-  } else {
-    document.getElementById('adminSection').style.display = 'none';
-    document.getElementById('userSection').style.display = 'block';
-    renderUserLeaves(); renderUsers(); populateFilterOptions(); renderAllCalendars();
-  }
-}
-
-/* ---------- Init ---------- */
-(async function init(){
-  try {
-    await loadUsers();
-    await loadLeaves();
-  } catch(e){
-    console.error('init error', e);
-  }
-  // If no users exist on sheet, create default admin to avoid lockout (also saved)
-  if(!Array.isArray(users) || users.length === 0){
-    users = [{ username: 'admin', password: 'admin123', email: 'admin@example.com', role: 'admin', quota: 12 }];
-    await saveUsers();
-  }
-  renderUsers(); populateFilterOptions(); renderAdminLeavesFiltered(); renderUserLeaves(); renderAllCalendars();
-  // if session exists, show sections
-  if(sessionStorage.getItem('loggedUser')) showSections();
-})();
 </script>
 </body>
 </html>
-
