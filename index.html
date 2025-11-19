@@ -42,14 +42,22 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
 .cal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .cal-day{padding:6px;background:transparent;border-radius:6px;text-align:center;font-size:13px;font-weight:700;color:#475569}
-.cal-cell{padding:8px;border-radius:8px;text-align:center;background:#fff;border:1px solid #edf2f7;min-height:44px;display:flex;align-items:center;justify-content:center}
+.cal-cell{padding:8px;border-radius:8px;text-align:center;background:#fff;border:1px solid #edf2f7;min-height:44px;display:flex;align-items:center;justify-content:center; position: relative;}
 .cal-disabled{opacity:0.35;background:#f1f5f9}
-.cal-marked{background:#fff0f6;border-color:#ffb3c0;box-shadow:inset 0 -3px 0 rgba(251,113,133,0.12)}
-.cal-today{box-shadow:0 0 0 2px rgba(14,165,173,0.08);border-color:#0ea5ad}
+
+/* Updated Calendar Marking Styles */
+.cal-marked{
+    background:#ffe4e6;
+    border: 1px solid #fda4af;
+    color: #9f1239;
+    font-weight: bold;
+}
+.cal-today{box-shadow:0 0 0 2px rgba(14,165,173,0.5);border-color:#0ea5ad; font-weight:bold;}
+
 .cal-nav{padding:6px 10px;border-radius:8px;border:1px solid #e6edf3;background:#fff;cursor:pointer}
 .cal-legend{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:8px}
 .legend-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
-.legend-applied{background:#ffbed0}
+.legend-applied{background:#fda4af; border:1px solid #e11d48;}
 
 /* Branch List */
 .branch-list { list-style:none; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
@@ -69,12 +77,13 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
   <h2 style="margin-top:0">Login Sistem Cuti</h2>
   <form id="loginForm">
     <div><label>Username</label><input id="loginUsername" required placeholder="admin / user"></div>
-    <div><label>Password</label><input type="password" id="loginPassword" required placeholder="1234"></div>
+    <div><label>Password</label><input type="password" id="loginPassword" required placeholder="admin123"></div>
     <div class="actions">
       <button type="submit">Login</button>
     </div>
   </form>
   <div style="margin-top:10px; font-size:12px; color:#64748b;">
+    Default Admin: <b>admin</b> / <b>admin123</b> (Pusat)
   </div>
 </section>
 
@@ -140,7 +149,7 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
         <button class="cal-nav" id="adminNext">→</button>
       </div>
       <div id="adminCalGrid" class="cal-grid"></div>
-      <div class="cal-legend"><span class="legend-dot legend-applied"></span> Tanda: Sudah ada pengajuan (pending/approved)</div>
+      <div class="cal-legend"><span class="legend-dot legend-applied"></span> Tanda: Sudah ada pengajuan (di cabang ini)</div>
     </div>
 
     <!-- FILTERS -->
@@ -191,11 +200,16 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
         <label>Sampai tanggal</label>
         <input type="date" id="deleteRangeEnd">
       </div>
+      <!-- NEW: Branch Select for Deletion -->
+      <div>
+        <label>Cabang (Hapus)</label>
+        <select id="deleteRangeBranch"><option value="all">Semua Cabang</option></select>
+      </div>
       <div>
         <button id="btnDeleteRange" class="delete" style="background:#e11d48">Hapus Range</button>
       </div>
       <div style="flex:1; text-align:right; color:#881337; font-size:12px; align-self:center">
-        (Hanya menghapus pengajuan, <strong>tidak menghapus user</strong>)
+        (Hanya menghapus pengajuan)
       </div>
     </div>
 
@@ -231,7 +245,8 @@ td:last-child, th:last-child{border-top-right-radius:8px;border-bottom-right-rad
                 <button class="cal-nav" id="userNext">→</button>
               </div>
               <div id="userCalGrid" class="cal-grid"></div>
-              <div class="cal-legend"><span class="legend-dot legend-applied"></span> Anda ada pengajuan di tanggal ini</div>
+              <!-- UPDATED LEGEND -->
+              <div class="cal-legend"><span class="legend-dot legend-applied"></span> Tanda: Rekan kerja satu cabang cuti</div>
             </div>
         </div>
     </div>
@@ -275,7 +290,20 @@ if(!Array.isArray(users) || users.length === 0){
 let leaveRequests = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
 function saveLeaves(){ localStorage.setItem('leaveRequests', JSON.stringify(leaveRequests)); }
 
-function daysBetween(a,b){ return Math.floor((new Date(b) - new Date(a))/(1000*60*60*24)) + 1; }
+// Updated safe date parsing (Local Time)
+function parseDateLocal(s) {
+  if(!s) return null;
+  const p = s.split('-').map(Number); // [Year, Month, Day]
+  // Note: Month is 0-indexed in JS Date
+  return new Date(p[0], p[1]-1, p[2]);
+}
+
+function daysBetween(a,b){ 
+    const dA = parseDateLocal(a);
+    const dB = parseDateLocal(b);
+    return Math.floor((dB - dA)/(1000*60*60*24)) + 1; 
+}
+
 function getLoggedUser(){ try { return JSON.parse(localStorage.getItem('loggedUser')); } catch(e){ return null; } }
 
 /* ---------- Utility: adjust user quota safely ---------- */
@@ -342,12 +370,31 @@ function renderCalendar(who){
     grid.appendChild(div);
   }
 
+  // Get viewer's branch info
+  const logged = getLoggedUser();
+  // We need to find the FRESH user object because local storage 'loggedUser' might be stale on branch update
+  const viewerObj = logged ? users.find(u => u.username === logged.username) : null;
+  const viewerBranch = viewerObj ? viewerObj.branch : null;
+
   const marked = new Set();
   leaveRequests.forEach(r=>{
     if(r.status === 'rejected') return;
-    if(who === 'user' && r.username !== getLoggedUser()?.username) return;
-    let s = new Date(r.start), e = new Date(r.end);
-    if(isNaN(s) || isNaN(e)) return;
+    
+    // LOGIC ISOLASI CABANG:
+    const requestor = users.find(u => u.username === r.username);
+    if (!requestor) return;
+    
+    // Jika admin pusat atau viewer tidak punya branch (fallback), lihat semua
+    if (viewerBranch && viewerBranch !== 'Pusat') {
+        if (requestor.branch !== viewerBranch) return; // Skip jika beda cabang
+    }
+    
+    // Use local parsing to avoid timezone shifting
+    let s = parseDateLocal(r.start);
+    let e = parseDateLocal(r.end);
+    
+    if(!s || !e) return;
+    
     let cur = new Date(s);
     while(cur <= e){
       if(cur.getMonth() === state.month && cur.getFullYear() === state.year){
@@ -367,7 +414,7 @@ function renderCalendar(who){
     }
     if(marked.has(d)){
       div.classList.add('cal-marked');
-      div.title = 'Ada pengajuan';
+      div.title = 'Ada pengajuan (Cabang ini)';
     }
     grid.appendChild(div);
   }
@@ -435,7 +482,6 @@ function renderUsers(){
   tbody.innerHTML = '';
   users.forEach((u, idx) => {
     const tr = document.createElement('tr');
-    // Added Branch Column
     tr.innerHTML = `<td>${u.username}</td><td>${u.branch || '-'}</td><td>${u.email || '-'}</td><td>${u.role}</td><td>${u.quota}</td><td></td>`;
     const actionsTd = tr.querySelector('td:last-child');
 
@@ -445,13 +491,11 @@ function renderUsers(){
       const newUser = prompt('Username:', u.username);
       if(newUser === null) return; 
       
-      // Edit details including Branch
       const newEmail = prompt('Email (opsional):', u.email || '');
       const newPwd = prompt('Password (kosong = tetap):', '');
       const newRole = prompt('Role (user/admin):', u.role);
       const currentBranch = u.branch || branches[0] || 'Pusat';
       
-      // Simple prompt for branch (advanced: could use a custom modal, but prompt is consistent with existing UI)
       let branchListString = branches.join(', ');
       const newBranch = prompt(`Cabang (${branchListString}):`, currentBranch);
       const newQuota = prompt('Sisa Cuti (angka):', u.quota);
@@ -499,54 +543,40 @@ function renderUsers(){
 }
 
 /* ---------- Admin leaves (with filters) ---------- */
-// FUNGSI BARU: Mengambil data cuti yang sudah difilter (dipakai Tabel, CSV, dan PDF)
 function getFilteredLeaves() {
   const statusFilter = document.getElementById('filterStatus')?.value || 'all';
   const userFilter = document.getElementById('filterUser')?.value || 'all';
-  const branchFilter = document.getElementById('filterBranch')?.value || 'all'; // Baru
+  const branchFilter = document.getElementById('filterBranch')?.value || 'all';
   const dateFilter = document.getElementById('filterDate')?.value || '';
   const monthFilter = document.getElementById('filterMonth')?.value || 'all';
   const yearFilter = document.getElementById('filterYear')?.value || 'all';
 
   return leaveRequests.filter(r => {
-    const start = new Date(r.start);
-    if(isNaN(start)) return false;
+    const start = parseDateLocal(r.start);
+    if(!start) return false;
 
-    // 1. Filter Status
     if(statusFilter !== 'all' && r.status !== statusFilter) return false;
-    
-    // 2. Filter User
     if(userFilter !== 'all' && r.username !== userFilter) return false;
-
-    // 3. Filter Cabang (BARU)
     if(branchFilter !== 'all') {
         const u = users.find(u => u.username === r.username);
         const uBranch = u ? (u.branch || '-') : '-';
-        // Gunakan loose equality atau exact match string
         if(uBranch !== branchFilter) return false;
     }
-
-    // 4. Filter Tanggal Spesifik
     if(dateFilter){ 
-        const d = new Date(dateFilter); 
-        if(!(d >= new Date(r.start) && d <= new Date(r.end))) return false; 
+        const d = parseDateLocal(dateFilter); 
+        const end = parseDateLocal(r.end);
+        if(!(d >= start && d <= end)) return false; 
     }
-
-    // 5. Filter Bulan
     if(monthFilter !== 'all'){ 
         if((start.getMonth()+1).toString() !== monthFilter) return false; 
     }
-
-    // 6. Filter Tahun
     if(yearFilter !== 'all'){ 
         if(start.getFullYear().toString() !== yearFilter) return false; 
     }
-
     return true;
   }).sort((a,b)=>{
-    // Sort: ID descending (terbaru input), fallback ke tanggal
     if(a.id && b.id) return (b.id > a.id) ? 1 : -1;
-    return new Date(b.start) - new Date(a.start);
+    return parseDateLocal(b.start) - parseDateLocal(a.start);
   });
 }
 
@@ -555,7 +585,6 @@ function renderAdminLeavesFiltered(){
   if(!tbody) return;
   tbody.innerHTML = '';
 
-  // Panggil fungsi filter utama
   const leavesSorted = getFilteredLeaves();
 
   if(leavesSorted.length === 0) {
@@ -564,7 +593,6 @@ function renderAdminLeavesFiltered(){
   }
 
   leavesSorted.forEach((r) => {
-    // Get User Branch for Table
     const uObj = users.find(u => u.username === r.username);
     const uBranch = uObj ? (uObj.branch || '-') : '-';
 
@@ -599,22 +627,19 @@ function renderAdminLeavesFiltered(){
       renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions(); renderAllCalendars();
     };
 
-    actionsTd.appendChild(aBtn); 
-    actionsTd.appendChild(rBtn); 
-    actionsTd.appendChild(dBtn);
-
+    actionsTd.appendChild(aBtn); actionsTd.appendChild(rBtn); actionsTd.appendChild(dBtn);
     tbody.appendChild(tr);
   });
   renderCalendar('admin');
 }
 
-/* ---------- User side (RESTORED) ---------- */
+/* ---------- User side ---------- */
 function renderUserLeaves(){
   const tbody = document.querySelector('#leaveTable tbody'); if(!tbody) return;
   const u = getLoggedUser(); if(!u) return;
   const myLeaves = leaveRequests.filter(r => r.username === u.username).sort((a,b)=> {
     if(a.id && b.id) return (b.id > a.id) ? 1 : -1;
-    return new Date(b.start) - new Date(a.start);
+    return parseDateLocal(b.start) - parseDateLocal(a.start);
   });
   tbody.innerHTML = '';
   myLeaves.forEach(r => {
@@ -635,10 +660,9 @@ function updateQuotaDisplay(){
   if(stored){ localStorage.setItem('loggedUser', JSON.stringify(stored)); }
   const quotaEl = document.getElementById('leaveQuotaDisplay');
   if(quotaEl) quotaEl.innerHTML = `Sisa Cuti: ${storedQuota} Hari <br><span style="font-size:14px;color:#64748b;font-weight:normal">Cabang: ${storedBranch}</span>`;
-  renderUsers();
 }
 
-/* ---------- Login / Logout / UI Control (RESTORED) ---------- */
+/* ---------- Login / Logout / UI Control ---------- */
 function showSections(){
   const u = getLoggedUser();
   const loginSec = document.getElementById('loginSection');
@@ -657,7 +681,7 @@ function showSections(){
     if(u.role === 'admin'){
       adminSec.style.display = 'block';
       userSec.style.display = 'none';
-      renderBranches(); // Init branches
+      renderBranches();
       renderUsers(); renderAdminLeavesFiltered();
     } else {
       adminSec.style.display = 'none';
@@ -687,14 +711,14 @@ document.getElementById('logoutBtn').addEventListener('click', ()=> {
 
 document.addEventListener('DOMContentLoaded', showSections);
 
-/* ---------- Admin features (RESTORED) ---------- */
+/* ---------- Admin features ---------- */
 document.getElementById('addUserForm').addEventListener('submit', e => {
   e.preventDefault();
   const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newPassword').value.trim();
   const email = document.getElementById('newEmail').value.trim();
   const role = document.getElementById('newRole').value;
-  const branch = document.getElementById('newBranchSelect').value; // Get branch
+  const branch = document.getElementById('newBranchSelect').value;
 
   if(!username || !password){ alert('Username & password wajib diisi'); return; }
   if(users.find(u => u.username === username)){ alert('Username sudah ada'); return; }
@@ -712,28 +736,39 @@ document.getElementById('resetQuotaBtn').addEventListener('click', ()=> {
   alert('Sisa cuti diperbaharui');
 });
 
-/* ---------- User Leave Submit (RESTORED) ---------- */
+/* ---------- User Leave Submit ---------- */
 document.getElementById('leaveForm').addEventListener('submit', e => {
   e.preventDefault();
   const u = getLoggedUser(); if(!u){ alert('Login terlebih dahulu'); return; }
   const s = document.getElementById('leaveStart').value;
   const eDate = document.getElementById('leaveEnd').value;
   if(!s || !eDate){ alert('Pilih tanggal'); return; }
-  if(new Date(eDate) < new Date(s)){ alert('Tanggal selesai tidak boleh sebelum tanggal mulai'); return; }
+  
+  // Fix: Use Local parsing for overlap checking
+  const start = parseDateLocal(s);
+  const end = parseDateLocal(eDate);
+  
+  if(end < start){ alert('Tanggal selesai tidak boleh sebelum tanggal mulai'); return; }
   const days = daysBetween(s,eDate);
   const reason = document.getElementById('leaveReason').value || '-';
 
   function overlaps(aStart,aEnd,bStart,bEnd){ return (aStart <= bEnd) && (bStart <= aEnd); }
-  const start = new Date(s); const end = new Date(eDate);
+  
   const overlapsList = leaveRequests.filter(r => {
     if(r.username === u.username) return false;
-    const rs = new Date(r.start), re = new Date(r.end);
-    if(isNaN(rs) || isNaN(re)) return false;
+    
+    // CHECK BRANCH ISOLATION FOR OVERLAP WARNING
+    const requestor = users.find(x => x.username === r.username);
+    if (!requestor || requestor.branch !== u.branch) return false;
+
+    const rs = parseDateLocal(r.start);
+    const re = parseDateLocal(r.end);
+    if(!rs || !re) return false;
     return overlaps(start,end,rs,re);
   }).map(r => `${r.username} (${r.start}→${r.end})`);
 
   if(overlapsList.length){
-    const proceed = confirm(`Terdapat ${overlapsList.length} pengajuan lain yang overlap:\n- ${overlapsList.join('\n- ')}\n\nLanjutkan mengajukan cuti?`);
+    const proceed = confirm(`Terdapat ${overlapsList.length} pengajuan lain (di cabang Anda) yang overlap:\n- ${overlapsList.join('\n- ')}\n\nLanjutkan mengajukan cuti?`);
     if(!proceed) return;
   }
 
@@ -759,7 +794,7 @@ document.getElementById('changePassForm').addEventListener('submit', e => {
   alert('Password berhasil diperbarui'); e.target.reset();
 });
 
-/* ---------- Exports (Updated to use Filtered Data) ---------- */
+/* ---------- Exports ---------- */
 document.getElementById('exportCSVBtn').addEventListener('click', ()=> {
   const leavesSorted = getFilteredLeaves(); 
   let csv = `"Username","Cabang","Periode","Hari","Alasan","Status","Keterangan Admin"\n`;
@@ -803,9 +838,11 @@ document.getElementById('exportPDFBtn').addEventListener('click', ()=> {
 function populateFilterOptions(){
   const userSelect = document.getElementById('filterUser');
   const branchSelect = document.getElementById('filterBranch');
-  
+  const deleteBranchSelect = document.getElementById('deleteRangeBranch'); // NEW
+
   if(!userSelect || !branchSelect) return;
 
+  // Populate Users
   userSelect.innerHTML = '<option value="all">Semua User</option>';
   users.forEach(u => { 
       const opt = document.createElement('option'); 
@@ -814,19 +851,30 @@ function populateFilterOptions(){
       userSelect.appendChild(opt); 
   });
 
-  branchSelect.innerHTML = '<option value="all">Semua Cabang</option>';
+  // Populate Filters & Delete Range Branch
+  const branchOptions = '<option value="all">Semua Cabang</option>';
+  branchSelect.innerHTML = branchOptions;
+  if(deleteBranchSelect) deleteBranchSelect.innerHTML = branchOptions;
+
   branches.forEach(b => {
       const opt = document.createElement('option');
       opt.value = b;
       opt.textContent = b;
       branchSelect.appendChild(opt);
+      
+      if(deleteBranchSelect) {
+          const optDel = document.createElement('option');
+          optDel.value = b;
+          optDel.textContent = b;
+          deleteBranchSelect.appendChild(optDel);
+      }
   });
 
   const yearSelect = document.getElementById('filterYear');
   if(yearSelect) {
       yearSelect.innerHTML = '<option value="all">Semua Tahun</option>';
       const years = new Set();
-      leaveRequests.forEach(r => { const y = new Date(r.start).getFullYear(); if(!isNaN(y)) years.add(y); });
+      leaveRequests.forEach(r => { const y = parseDateLocal(r.start); if(y) years.add(y.getFullYear()); });
       Array.from(years).sort().forEach(y => { const opt = document.createElement('option'); opt.value = y; opt.textContent = y; yearSelect.appendChild(opt); });
   }
 
@@ -841,21 +889,35 @@ function populateFilterOptions(){
 
 function rangesOverlap(aStart, aEnd, bStart, bEnd){ return (aStart <= bEnd) && (bStart <= aEnd); }
 
+/* UPDATED DELETE RANGE LOGIC */
 document.getElementById('btnDeleteRange').addEventListener('click', ()=> {
   const s = document.getElementById('deleteRangeStart').value;
   const e = document.getElementById('deleteRangeEnd').value;
+  const selectedBranch = document.getElementById('deleteRangeBranch').value; // NEW
+
   if(!s || !e){ alert('Isi kedua tanggal (awal & akhir) untuk penghapusan.'); return; }
-  const start = new Date(s); const end = new Date(e);
+  const start = parseDateLocal(s); const end = parseDateLocal(e);
   if(end < start){ alert('Tanggal akhir harus sama atau setelah tanggal awal.'); return; }
 
   const toDelete = leaveRequests.filter(r => {
-    const rs = new Date(r.start); const re = new Date(r.end);
-    if(isNaN(rs) || isNaN(re)) return false;
-    return rangesOverlap(start, end, rs, re);
+    // 1. Check Date Range
+    const rs = parseDateLocal(r.start); const re = parseDateLocal(r.end);
+    if(!rs || !re) return false;
+    const inRange = rangesOverlap(start, end, rs, re);
+    if(!inRange) return false;
+
+    // 2. Check Branch
+    if(selectedBranch !== 'all') {
+        const u = users.find(u => u.username === r.username);
+        if(!u || u.branch !== selectedBranch) return false;
+    }
+    return true;
   });
 
-  if(toDelete.length === 0){ alert('Tidak ada pengajuan cuti dalam rentang tanggal tersebut.'); return; }
-  if(!confirm(`Akan menghapus ${toDelete.length} pengajuan cuti yang overlap rentang ${s} → ${e}.\nLanjutkan?`)) return;
+  const branchText = selectedBranch === 'all' ? 'SEMUA Cabang' : `Cabang ${selectedBranch}`;
+
+  if(toDelete.length === 0){ alert(`Tidak ada pengajuan cuti di ${branchText} dalam rentang tanggal tersebut.`); return; }
+  if(!confirm(`Akan menghapus ${toDelete.length} pengajuan cuti di ${branchText} yang overlap rentang ${s} → ${e}.\nLanjutkan?`)) return;
 
   toDelete.forEach(r => {
       if(r.status === 'approved'){ adjustUserQuota(r.username, r.days); }
@@ -864,7 +926,7 @@ document.getElementById('btnDeleteRange').addEventListener('click', ()=> {
   });
 
   saveLeaves(); renderAdminLeavesFiltered(); renderUserLeaves(); populateFilterOptions(); renderAllCalendars();
-  alert('Pengajuan dalam rentang tanggal tersebut berhasil dihapus.');
+  alert('Pengajuan dalam rentang tanggal & cabang tersebut berhasil dihapus.');
 });
 </script>
 </body>
